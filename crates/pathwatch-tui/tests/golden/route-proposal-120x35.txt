@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:00
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                    [DEMO: synthetic data · scenario healthy]
+╭─ Route to 1.1.1.1 · ICMP echo with a limited TTL ─────────────────────────────────────────────────────── not started ╮
+│ Enter starts a trace to 1.1.1.1. Nothing has been sent.                                                              │
+│                                                                                                                      │
+│ It would send: ICMP echo, TTL 1 to 30, 10 rounds, one every 1s — at most 300 probes in all and 30 a second.          │
+│ It runs once, on a socket of its own, and stops by itself. `t` stops it early; leaving this view stops it.           │
+│                                                                                                                      │
+│ This is an ICMP trace. DNS-over-UDP and HTTPS traffic to the same address may take another path.                     │
+│ Each row is its own round trip: rows are not additive, and one must not be subtracted from the next.                 │
+│ If the destination is an anycast address, the answering site can change over time and between protocols.             │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ Enter start · t stop · n names · j/k scroll · Esc back (stops it) · ? · q

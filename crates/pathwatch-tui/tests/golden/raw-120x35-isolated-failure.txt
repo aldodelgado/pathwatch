@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:30
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket           [DEMO: synthetic data · scenario isolated-failure]
+ 4 Arelion   Streams   Distribution   DNS  [Raw]  Events
+╭─ Raw observations · ICMP v4 · newest first ──────────────────────────────────────────── rows 1–28 of 88 · j/k scroll ╮
+│ sent, UTC        seq  outcome             rtt ms   rx wait sched lag  notes                                          │
+│ 00:01:27.750      87  timeout                  —         —     0.000                                                 │
+│ 00:01:26.750      86  timeout                  —         —     0.000                                                 │
+│ 00:01:25.750      85  timeout                  —         —     0.000                                                 │
+│ 00:01:24.750      84  timeout                  —         —     0.000                                                 │
+│ 00:01:23.750      83  timeout                  —         —     0.000                                                 │
+│ 00:01:22.750      82  timeout                  —         —     0.000                                                 │
+│ 00:01:21.750      81  timeout                  —         —     0.000                                                 │
+│ 00:01:20.750      80  timeout                  —         —     0.000                                                 │
+│ 00:01:19.750      79  timeout                  —         —     0.000                                                 │
+│ 00:01:18.750      78  timeout                  —         —     0.000                                                 │
+│ 00:01:17.750      77  timeout                  —         —     0.000                                                 │
+│ 00:01:16.750      76  timeout                  —         —     0.000                                                 │
+│ 00:01:15.750      75  timeout                  —         —     0.000                                                 │
+│ 00:01:14.750      74  timeout                  —         —     0.000                                                 │
+│ 00:01:13.750      73  timeout                  —         —     0.000                                                 │
+│ 00:01:12.750      72  timeout                  —         —     0.000                                                 │
+│ 00:01:11.750      71  timeout                  —         —     0.000                                                 │
+│ 00:01:10.750      70  timeout                  —         —     0.000                                                 │
+│ 00:01:09.750      69  timeout                  —         —     0.000                                                 │
+│ 00:01:08.750      68  timeout                  —         —     0.000                                                 │
+│ 00:01:07.750      67  timeout                  —         —     0.000                                                 │
+│ 00:01:06.750      66  timeout                  —         —     0.000                                                 │
+│ 00:01:05.750      65  timeout                  —         —     0.000                                                 │
+│ 00:01:04.750      64  timeout                  —         —     0.000                                                 │
+│ 00:01:03.750      63  timeout                  —         —     0.000                                                 │
+│ 00:01:02.750      62  timeout                  —         —     0.000                                                 │
+│ 00:01:01.750      61  timeout                  —         —     0.000                                                 │
+│ 00:01:00.750      60  timeout                  —         —     0.000                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 4 Arelion │ 1 m │ PLAYING │ h/l tab · j/k scroll · 1-4 provider · m mode · f family · Esc back · ? · q

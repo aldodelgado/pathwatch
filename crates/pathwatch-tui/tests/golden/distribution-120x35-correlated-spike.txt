@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:40
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket           [DEMO: synthetic data · scenario correlated-spike]
+ 1 Cloudflare   Streams  [Distribution]  DNS   Raw   Events
+╭─ Distribution · ICMP v4 · window 1 m ──────────────────────────────────────────────── m mode · f family · +/- window ╮
+│ bin, ms       round trips                                                    ms                 window  since start  │
+│         10–15 ██████████████████████████████████████████████████████ 45      round trips            60          100  │
+│         15–20  0                                                             min                  11.5         11.4  │
+│         20–25  0                                                             p50                  12.2         12.1  │
+│         25–30  0                                                             mean                 22.1         18.0  │
+│         30–35  0                                                             p95                  52.3         52.2  │
+│         35–40  0                                                             p99                     —         52.5  │
+│         40–45  0                                                             max                  52.5         52.5  │
+│         45–50  0                                                             sd                   17.5         14.4  │
+│         50–55 ██████████████████ 15                                          Δ adjacent            1.7          1.1  │
+│                                                                              no-reply            0.0 %        0.0 %  │
+│ Bars count answered probes only. An unanswered probe has no time, so it is   error resp.         0.0 %        0.0 %  │
+│ in no bin; see no-reply.                                                     no-reply run    longest 0    longest 0  │
+│ `—` too few samples to show · `·` low sample count.                          sent                   60          100  │
+│                                                                              coverage            100 %        100 %  │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ h/l tab · j/k scroll · 1-4 provider · m mode · f family · Esc back · ? · q

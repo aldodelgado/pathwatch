@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 02:30
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                   [DEMO: synthetic data · scenario flapping]
+ 4 Arelion   Streams   Distribution   DNS   Raw  [Events]
+╭─ Events · this provider and the whole session · newest first ──────────────────────────────────────────────── 5 rows ╮
+│ 00:02:06  ● arelion icmp v4          replies resumed after 7 s; 6 probes went unanswered during the run              │
+│ 00:01:54  ▲ arelion icmp v4          no-reply run opened: 5 consecutive probes unanswered                            │
+│ 00:00:46  ● arelion icmp v4          replies resumed after 7 s; 6 probes went unanswered during the run              │
+│ 00:00:34  ▲ arelion icmp v4          no-reply run opened: 5 consecutive probes unanswered                            │
+│ 00:00:31  ▲ arelion icmp v4          no-reply rate 6 % over the last minute (2 of 32 probes)                         │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 4 Arelion │ 1 m │ PLAYING │ h/l tab · j/k scroll · 1-4 provider · m mode · f family · Esc back · ? · q

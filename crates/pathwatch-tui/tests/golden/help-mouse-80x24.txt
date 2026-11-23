@@ -1,0 +1,24 @@
+╭─ Keys ────────────────────────────────── ? what the numbers mean · Esc close ╮
+│                                                                              │
+│  1 2 3 4         focus that provider                                         │
+│  h l  ← →  Tab   previous / next provider; in details, previous / next tab   │
+│  Enter           details for the focused provider                            │
+│  j k  ↓ ↑  g G   in details: scroll a list; top / bottom                     │
+│  Esc             back; closes help, the cursor, or a prompt first            │
+│  m  M            next / previous measurement mode                            │
+│  f               switch address family, IPv4 ↔ IPv6                          │
+│  +  -            longer / shorter time window                                │
+│  Space           freeze / unfreeze the view (collection continues)           │
+│  c               chart cursor: h l move it, H L by ten; values in the footer │
+│  a               compact layout: all four series ↔ focused only              │
+│  P               stop / resume collection (asks first; recorded as a gap)    │
+│  R               reload the configuration; unchanged streams keep running    │
+│  t               route trace to the focused provider: Enter starts, t stops  │
+│  Ctrl-Z          suspend to the shell; fg resumes                            │
+│  Ctrl-L          redraw                                                      │
+│  ?               this help; again for what the words and numbers mean        │
+│  q  Ctrl-C       quit and restore the terminal                               │
+│  click           a card, table row or legend name: focus that provider       │
+│  click           the chart or outcomes: put the cursor there; a tab: open it │
+│  wheel           on the chart: shorter / longer window; on a list: scroll    │
+╰──────────────────────────────────────────────────────────────────────────────╯

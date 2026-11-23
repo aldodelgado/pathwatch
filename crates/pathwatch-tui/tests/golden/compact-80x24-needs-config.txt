@@ -1,0 +1,24 @@
+ pathwatch ▸ DEMO ICMP v4  1 m  PLAYING                        up 01:30  [DEMO]
+    provider    target          status          last    p50    p95 no-reply    n
+ ▸1 Cloudflare  1.1.1.1         ● OK           12.0   12.1   12.5     0.0%   60
+  2 Google      8.8.8.8         ● OK           18.2   18.2   18.8     0.0%   60
+  3 NextDNS     —               ? NEEDS CONFIG
+  4 Arelion     —               ? NEEDS CONFIG
+╭─ 1 Cloudflare · ICMP echo RTT, ms ────────────────────────────── a: all four ╮
+│  20 ┤                                                                        │
+│     │                                                                        │
+│  15 ┤                                                                        │
+│     │⠒⠒⠚⠉⠙⠒⠒⠚⠉⠙⠚⠉⠉⠉⠉⠙⠚⠉⠉⠉⠉⠉⠙⠚⠙⠒⠚⠉⠙⠚⠙⠚⠉⠉⠉⠉⠉⠉⠉⠙⠚⠉⠉⠙⠚⠉⠉⠙⠚⠉⠉⠉⠙⠚⠉⠙⠚⠉⠉⠉⠉⠉⠉⠉⠙⠒⠚⠉ CF │
+│  10 ┤                                                                        │
+│     │                                                                        │
+│   5 ┤                                                                        │
+│     │                                                                        │
+│   0 └────────────────────────────────────────────────────────────────────    │
+│      -1m           -45s             -30s             -15s             now    │
+╰──────────────────────────────────────────────────────────────────────────────╯
+  1 CF ····································································
+  2 GO ····································································
+  3 ND   needs configuration — nothing sent
+  4 AR   needs configuration — nothing sent
+ no events yet
+ 1 Cloudflare │ 1 m │ PLAYING │ 1-4 · Enter · m · f · +/- · Space · c · ? · q

@@ -1,0 +1,60 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:00
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                    [DEMO: synthetic data · scenario healthy]
+╭─ 1 Cloudflare ─────────────╮╭─ 2 Google ─────────────────╮╭─ 3 NextDNS ────────────────╮╭─ 4 Arelion ────────────────╮
+│ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 │
+│ 1.1.1.1           ╭─ What the words and numbers mean ───────────────────────── ? or Esc to close ╮00.7               │
+│  12.2 ms    last 1│                                                                              │    last 0.2 s ago │
+│ p50 12.0  p95 12.5│ Times                                                                        │  p95 32.6  Δ 1.1  │
+│ no-reply 0.0 %    │  last            the newest answered round trip                              │ 0.0 %      0 / 60 │
+│ n 60 · coverage 10│  p50             the median round trip; needs 5 answers                      │overage 100 %      │
+│ ▅▅▅▅▄▅▇▆▄▄▇▃▇▂▇▁▅█│  p95             the 95th percentile, nearest rank; needs 20 answers         │▅▅▃▁▃▆▂▆▅▆▂▅▅▇▇▇▇▆ │
+╰───────────────────│  p99             the 99th percentile; needs 100 answers                      │───────────────────╯
+╭─ Latency · ICMP ec│  mean            the arithmetic mean; needs 5; pulled by outliers            │ NextDNS · Arelion ╮
+│  40 ┤             │  min  max        the fastest and the slowest answered round trip             │                   │
+│     │             │  sd              sample standard deviation; needs 20 answers                 │                   │
+│37.6 ┤             │  Δ               mean change between consecutive answers; needs 10 pairs     │                   │
+│     │             │  n               how many round trips the times above rest on                │                   │
+│35.2 ┤             │                                                                              │                   │
+│     │             │ Shares                                                                       │                   │
+│32.7 ┤ ⢠⠤⢤ ⢀⣀⣀⢀⣀⣀  │  no-reply        (timed out + unreachable) ÷ finalised; not proof of loss    │    ⢸⢹ ⢸⠉⠙⠒⢲ ⢀⣀ AR │
+│     │⣀⣸ ⠘⠒⠚ ⢸⣸ ⠈⠉⠙│  err-resp        answers that were errors or not as expected ÷ finalised     │⢹   ⢸⢸ ⢸   ⠸⠤⠼     │
+│30.3 ┤             │  cov             probes sent ÷ probes the window has room for                │⠸⠤⠴⠒⠚⠈⠉⠉           │
+│     │             │                                                                              │                   │
+│27.9 ┤             │ Counts                                                                       │                   │
+│     │             │  sent            probes that left this host                                  │                   │
+│25.5 ┤        ⢠⠤⢤ ⢰│  pending         sent, and the deadline has not passed yet                   │⢲   ⢠⠴⠒⢲⣀⣀ ⢰⠒⢲⣀ ND │
+│     │⠤⠤⠤⢤⣀⣸⠉⠙⠚ ⠸⠤⠼│  replied         answered as expected, in time                               │⠈⠉⠹⠤⠼    ⠸⠤⠼       │
+│  23 ┤             │  timed out       no answer before the deadline                               │                   │
+│     │             │  unreachable     refused, or reported unreachable on the way                 │                   │
+│20.6 ┤             │  error responses an answer came, and it was an error or unexpected           │                   │
+│     │   ⢀⣀⣀       │  local errors    this host could not send; nothing left it                   │⢀⣀⣀⣀⣀⢀⣀⣀⣀⣀⣀⣀       │
+│18.2 ┤⠉⠉⠉⠉ ⠘⠒⠚⠙⠒⠚⠉⠉│  skipped         a slot that was not sent, on purpose                        │⠼   ⠸⠼     ⠈⠉⠉⠉ GO │
+│     │             │  cancelled       in flight when the program stopped watching                 │                   │
+│15.8 ┤             │  late            replies that came after their probe had timed out           │                   │
+│     │             │  duplicate       extra replies to a probe already answered                   │                   │
+│13.3 ┤ ⢀⣀⣀ ⢀⣀⣀  ⢀⣀⣀│  unanswered run  probes in a row with no answer: longest, and current        │⣀ ⢀⣀⣀⣀ ⢀⣀⣀ ⢀⣀⣀⣀ CF │
+│     │⠉⠉ ⠈⠉⠉ ⠘⠒⠒⠚ ⠘│                                                                              │⠘⠒⠚  ⠘⠒⠚ ⠈⠉⠉       │
+│10.9 ┤             │ Status words                                                                 │                   │
+│     │             │  OK              answering, with nothing open against it                     │                   │
+│ 8.5 ┤             │  WARMING UP      fewer than 20 finalised probes: too young to judge          │                   │
+│     │             │  NO REPLY        5 probes in a row unanswered (3 for DNS)                    │                   │
+│ 6.1 ┤             │  LOSSY           5 % or more unanswered over the last minute                 │                   │
+│     │             │  SLOW            last minute's median over 1.5× its baseline                 │                   │
+│ 3.6 ┤             │  ERRORS          3 of the last 10 DNS answers were errors                    │                   │
+│     │             │  LOCAL ERR       sends fail on this host; nothing reached the network        │                   │
+│ 1.2 ┤             │  STALE           no result for three probe intervals                         │                   │
+│   0 └─────────────│  NEEDS CONFIG    not configured yet; nothing is sent                         │───────────────    │
+│      -1m          │  UNSUPPORTED     this host cannot do it; nothing is sent                     │            now    │
+╰───────────────────│  DISABLED        switched off in the configuration                           │───────────────────╯
+╭─ Outcomes · same t│                                                                              │───────────────────╮
+│ 1 CF ·············│ Marks                                                                        │···············    │
+│ 2 GO ·············│  —               too few samples to show a number                            │···············    │
+│ 3 ND ·············│  ·               after a number: it rests on fewer than 20 samples           │···············    │
+│ 4 AR ·············│  outcome strip   · answered  ▒ some unanswered  █ none answered              │···············    │
+╰───────────────────│                                                                              │───────────────────╯
+╭─ Events ──────────╰──────────────────────────────────────────────────────────────────────────────╯est first · 0 of 0 ╮
+│ no events yet                                                                                                        │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ 1-4 · Enter · m mode · f family · +/- window · Space freeze · c cursor · ? help · q

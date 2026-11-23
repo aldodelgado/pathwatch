@@ -1,0 +1,356 @@
+# pathwatch configuration: the built-in defaults, as a commented file.
+#
+# `pathwatch config example` prints this file, and `pathwatch config reference` explains every
+# setting in it. `pathwatch` is a placeholder executable name.
+#
+# Location:    ~/.config/pathwatch/config.toml ($XDG_CONFIG_HOME/pathwatch/config.toml where that is
+#              set), or the file named by --config or PATHWATCH_CONFIG. `pathwatch config path` says which.
+# Precedence:  these defaults  <  your file  <  command-line options
+# A file need only hold what it changes. Unknown keys are errors. Durations are strings: "250ms",
+# "1s", "5m", "24h". Where a comment says "no effect in this build", the setting is accepted and
+# changes nothing; setting it to something else prints a warning.
+#
+# Strings of the form "<...>" are PLACEHOLDERS. The validator rejects a placeholder in any
+# enabled target, which is why the NextDNS and Arelion providers below ship disabled. With
+# this file unchanged, cards 3 and 4 show NEEDS CONFIG and send nothing.
+
+config_version = 1
+
+[general]
+families       = ["ipv4", "ipv6"]   # streams are created per family; they are never pooled
+default_mode   = "icmp"             # icmp | dns | encrypted — no effect in this build: the dashboard opens on ICMP
+default_family = "ipv4"             # no effect in this build: the dashboard opens on IPv4
+default_window = "5m"               # no effect in this build: the dashboard opens on five minutes; + and - change it
+
+# ── Source selection ────────────────────────────────────────────────────────────────────
+# Empty values mean "follow the OS routing table" (so an active VPN is used, not bypassed).
+# Only empty values are accepted in this build: binding to an interface or address is not built.
+[source]
+interface  = ""                     # e.g. "en0" or "eth0"
+address_v4 = ""
+address_v6 = ""
+
+# ── Global traffic limits ───────────────────────────────────────────────────────────────
+# A configuration whose steady-state rate exceeds max_transactions_per_second fails validation.
+[limits]
+max_transactions_per_second = 25
+burst                       = 40
+max_in_flight               = 128
+max_concurrent_dns          = 16    # no effect in this build
+
+# ── ICMP echo ───────────────────────────────────────────────────────────────────────────
+[icmp]
+enabled       = true
+interval      = "1s"                # per stream
+deadline      = "2s"                # a reply after this is recorded as late; the probe stays a timeout
+payload_bytes = 56                  # 64-byte ICMP message, the same as ping
+late_window   = "30s"               # how long a finalised timeout can still be annotated with a late reply
+backend       = "auto"              # auto | datagram: the unprivileged datagram socket. A raw backend is not built
+retries       = 0                   # only 0 in this build
+
+# ── DNS, common settings ────────────────────────────────────────────────────────────────
+[dns]
+interval      = "5s"                # per stream; must be greater than deadline
+deadline      = "3s"
+retries       = 0                   # only 0 in this build: a query is sent once and its result stands
+edns_udp_size = 1232
+recursion_desired = true
+tcp_fallback  = true                # on TC=1; both attempts are recorded
+
+# Query scenarios, applied round-robin in this order to every resolver.
+# expect: noerror | answer | nxdomain | blocked | any
+[[dns.query]]
+name   = "."
+type   = "NS"
+expect = "noerror"
+
+[[dns.query]]
+name   = "example.com."
+type   = "A"
+expect = "answer"
+
+[[dns.query]]
+name   = "wikipedia.org."
+type   = "AAAA"
+expect = "answer"
+
+[dns.udp]
+enabled = true
+
+# DNS over TCP as a stream of its own (separate from the automatic retry after a truncated UDP answer).
+# To use it: set enabled = true AND add "dns-tcp" to the `protocols` of each address target to probe this way.
+[dns.tcp]
+enabled  = false                    # a new connection per probe; the time shown is connect + query, each also recorded
+interval = "60s"                    # must be longer than dns.deadline
+
+[dns.dot]
+enabled         = true
+fresh_interval  = "5m"              # separate cohort: TCP connect + TLS handshake + first query
+fresh_handshake = "full"            # only full in this build: a fresh probe never resumes a TLS session
+
+[dns.doh]
+enabled         = true
+method          = "post"            # only post in this build
+fresh_interval  = "5m"
+fresh_handshake = "full"            # only full in this build
+proxy           = "direct"          # only direct in this build; an event notes it if HTTPS_PROXY or ALL_PROXY is set
+
+# ── Hostname bootstrap (never on the timing path) ───────────────────────────────────────
+[bootstrap]
+resolver   = "system"               # only "system" in this build; a target's own `addresses` pins it regardless
+servers    = []                     # no effect in this build
+refresh    = "5m"                   # used when the resolver does not expose TTLs
+on_failure = "fail"                 # fail | keep  (keep = continue on the last known address, flagged)
+
+# ── Providers ───────────────────────────────────────────────────────────────────────────
+# Identity colours are the Okabe–Ito palette; they are not vendor brand colours. In this build a
+# card's colour goes by its slot, and `color` has no effect.
+
+[providers.cloudflare]
+name    = "Cloudflare"
+slot    = 1
+enabled = true
+color   = "#E69F00"
+
+[[providers.cloudflare.targets]]
+id        = "resolver-v4"
+address   = "1.1.1.1"
+protocols = ["icmp", "dns-udp"]
+
+[[providers.cloudflare.targets]]
+id        = "resolver-v6"
+address   = "2606:4700:4700::1111"
+protocols = ["icmp", "dns-udp"]
+
+[[providers.cloudflare.targets]]
+id        = "doh"
+url       = "https://cloudflare-dns.com/dns-query"
+protocols = ["doh"]
+# Static bootstrap: these addresses are dialled directly and the hostname is never
+# resolved, so a filtering or rewriting local resolver cannot redirect the stream
+# (it would then measure that filter, not Cloudflare). The hostname is still the
+# TLS server name and the certificate is still verified against it. One address
+# per family is used. Verified 2026-11-21: 1.1.1.1 serves this hostname.
+# The cost: the stream does not follow Cloudflare if this service moves. To resolve
+# the hostname instead, remove `addresses` and set `follow = true`.
+addresses = ["1.1.1.1", "2606:4700:4700::1111"]
+
+# DNS over TLS. Off until you enable it; then one query every five seconds on a
+# long-lived connection, and a fresh connection every five minutes.
+[[providers.cloudflare.targets]]
+id        = "dot"
+enabled   = false
+hostname  = "one.one.one.one"       # TLS server name and certificate name
+port      = 853
+protocols = ["dot"]
+
+[providers.google]
+name    = "Google"
+slot    = 2
+enabled = true
+color   = "#56B4E9"
+
+[[providers.google.targets]]
+id        = "resolver-v4"
+address   = "8.8.8.8"
+protocols = ["icmp", "dns-udp"]
+
+[[providers.google.targets]]
+id        = "resolver-v6"
+address   = "2001:4860:4860::8888"
+protocols = ["icmp", "dns-udp"]
+
+[[providers.google.targets]]
+id        = "doh"
+url       = "https://dns.google/dns-query"
+protocols = ["doh"]
+follow    = true
+# addresses = ["8.8.8.8", "2001:4860:4860::8888"]   # static bootstrap, as for Cloudflare above; not needed where dns.google resolves correctly
+
+[[providers.google.targets]]
+id        = "dot"
+enabled   = false
+hostname  = "dns.google"
+port      = 853
+protocols = ["dot"]
+
+# NextDNS — DISABLED until you supply your own endpoint.
+# The profile ID is sensitive: prefer the environment variable over writing it here.
+# It is masked in the UI and redacted from logs, recordings shared with --redact, and exports.
+[providers.nextdns]
+name           = "NextDNS"
+slot           = 3
+enabled        = false
+color          = "#009E73"
+profile_id_env = "PATHWATCH_NEXTDNS_PROFILE"
+
+# The hostname-steered encrypted path your router or client actually uses.
+[[providers.nextdns.targets]]
+id        = "profile-doh"
+url       = "https://dns.nextdns.io/{profile_id}"
+protocols = ["doh"]
+follow    = true
+
+[[providers.nextdns.targets]]
+id        = "profile-dot"
+enabled   = false
+hostname  = "{profile_id}.dns.nextdns.io"
+port      = 853
+protocols = ["dot"]
+
+# Fixed-address probing is a DIFFERENT path from the steered hostname and is kept as its own stream.
+# Take these addresses from the Setup page of your NextDNS profile.
+[[providers.nextdns.targets]]
+id        = "plain-v4"
+enabled   = false
+address   = "<nextdns-ipv4-address-from-your-setup-page>"
+protocols = ["icmp", "dns-udp"]
+
+[[providers.nextdns.targets]]
+id        = "plain-v6"
+enabled   = false
+address   = "<nextdns-ipv6-address-from-your-setup-page>"
+protocols = ["icmp", "dns-udp"]
+
+# Twelve99 / Arelion — DISABLED until you supply the two addresses.
+# Decided 2026-11-21: BOTH targets, as separate streams that are never merged.
+#   router:   a backbone router you see in your own traces. ICMP only; it is a hop, not a service.
+#   resolver: one of the resolver addresses Arelion lists in its IP-assignment document. Whether it
+#             answers DNS for you is unknown until tested; DoT and DoH are not documented.
+# The first enabled target for a protocol is the card's primary stream: the router in ICMP mode,
+# the resolver in DNS mode.
+[providers.arelion]
+name    = "Arelion"
+slot    = 4
+enabled = false
+color   = "#CC79A7"
+
+[[providers.arelion.targets]]
+id        = "router"
+enabled   = false
+role      = "router"                # router targets accept only "icmp"
+address   = "<arelion-router-ip-or-hostname-you-choose>"
+protocols = ["icmp"]
+
+[[providers.arelion.targets]]
+id        = "resolver-v4"
+enabled   = false
+role      = "resolver"
+address   = "<arelion-listed-resolver-ipv4-you-choose>"
+protocols = ["icmp", "dns-udp"]
+
+# ── Secondary controls (optional; one quiet line below the four provider cards) ─────────
+# Off until you turn them on. Enabled, the gateway gets one echo a second and the resolver
+# one DNS query every five seconds. `pathwatch doctor` shows what "auto" would use, and
+# sends nothing to find out.
+[controls.gateway]
+enabled = false
+address = "auto"                    # auto = default gateway of the egress interface; or a literal IP
+
+[controls.local_dns]
+enabled = false
+address = "auto"                    # auto = the first resolver in /etc/resolv.conf; or a literal IP
+
+# ── Route inspection (on demand only) ───────────────────────────────────────────────────
+[trace]
+protocol       = "icmp"
+max_hops       = 30
+rounds         = 10
+round_interval = "1s"
+max_probes     = 300                # hard cap per trace
+max_rate       = 30                 # probes per second
+reverse_dns    = true               # asks the system resolver about each hop found; never on the probe path
+stop_on_leave  = true               # the only behaviour built: leaving the Route view stops the trace
+
+# ── History (in memory, bounded) ────────────────────────────────────────────────────────
+[history]
+samples = "24h"                     # compact per-probe samples per stream
+records = "1h"                      # full observation records per stream
+
+# ── Incident rules ──────────────────────────────────────────────────────────────────────
+[incidents]
+cooldown = "60s"
+
+[incidents.no_reply_run]
+open_after_consecutive   = 5
+close_after_consecutive  = 10
+
+[incidents.elevated_no_reply]
+window        = "60s"
+open_at       = 0.05
+close_at      = 0.01
+close_hold    = "30s"
+min_finalised = 30
+
+[incidents.latency_shift]
+recent           = "60s"
+baseline         = "15m"
+open_ratio       = 1.5
+open_min_delta   = "10ms"
+close_ratio      = 1.2
+min_recent       = 30
+min_baseline     = 300
+
+[incidents.dns]
+open_after_consecutive_no_response = 3
+close_after_consecutive_success    = 3
+error_responses_in_last_10         = 3
+
+# ── Appearance ──────────────────────────────────────────────────────────────────────────
+[ui]
+color          = "auto"             # auto | truecolor | 256 | 16 | never
+glyphs         = "unicode"          # unicode | ascii
+theme          = "default"          # default | high-contrast (bright bold colours, white on black, nothing dimmed) | mono
+max_fps        = 15                 # no effect in this build: the screen is redrawn when data changes, ten times a second at most
+idle_fps       = 4                  # no effect in this build
+reduced_motion = false              # true: redraw for new data at most four times a second; keys are still answered at once
+mouse          = false              # off by default so terminal text selection keeps working; `--mouse` turns it on for one run
+mask_secrets   = true               # no effect in this build: profile ids are always masked on screen
+
+[ui.keys]                           # no effect in this build: keys cannot be remapped; ? in the dashboard lists them
+quit             = ["q", "ctrl-c"]
+help             = ["?"]
+focus_next       = ["tab"]
+focus_prev       = ["shift-tab"]
+details          = ["enter"]
+back             = ["esc"]
+mode_next        = ["m"]
+mode_prev        = ["M"]
+family_toggle    = ["f"]
+window_longer    = ["+", "="]
+window_shorter   = ["-"]
+freeze           = ["space"]
+cursor           = ["c"]
+series_hide      = ["x"]
+series_solo      = ["X"]
+scale_cycle      = ["z"]
+events           = ["e"]
+raw              = ["r"]
+trace            = ["t"]
+capabilities     = ["C"]
+collection_stop  = ["P"]
+reload           = ["R"]
+
+# ── Recording (opt-in) ──────────────────────────────────────────────────────────────────
+[recording]
+enabled       = false               # or per run: `pathwatch run --record [DIR]`
+directory     = "~/.local/state/pathwatch/recordings"
+rotate_size   = "64MiB"
+rotate_age    = "24h"
+max_total     = "1GiB"              # oldest segments are deleted first
+min_free_disk = "200MiB"            # recording stops (measurement continues) below this
+fsync         = "rotate"            # rotate | never   (lines are flushed after every batch either way)
+
+[redaction]
+profile_ids      = true             # removed from a recording as it is written
+local_addresses  = false            # only false in this build; `pathwatch export --redact-local` removes them from an export
+hostnames        = false            # only false in this build
+
+# ── Logging ─────────────────────────────────────────────────────────────────────────────
+# This whole table has no effect in this build: no log file is written. What a session has to
+# say is in its events and, with --record, in its recording.
+[logging]
+level     = "info"                  # error | warn | info | debug | trace
+file      = "~/.local/state/pathwatch/pathwatch.log"
+max_size  = "10MiB"
+max_files = 3

@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:15
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket          [DEMO: synthetic data · scenario correlated-outage]
+ 2 Google   Streams   Distribution   DNS   Raw  [Events]
+╭─ Events · this provider and the whole session · newest first ──────────────────────────────────────────────── 4 rows ╮
+│ 00:01:02  ▲ 4 of 4 icmp v4           4 of 4 ICMP v4 streams began going unanswered within 1 s of each other:         │
+│                                      cloudflare (3 of 60 unanswered), google (3 of 60 unanswered), nextdns (3 of 60  │
+│                                      unanswered), arelion (3 of 60 unanswered). No comparable stream was unaffected. │
+│                                      No gateway or local-DNS control is configured.                                  │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 2 Google │ 1 m │ PLAYING │ h/l tab · j/k scroll · 1-4 provider · m mode · f family · Esc back · ? · q

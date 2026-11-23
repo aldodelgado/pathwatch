@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:00
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                    [DEMO: synthetic data · scenario healthy]
+╭─ Route to 1.1.1.1 · ICMP echo with a limited TTL ────────────────────────────────────────────────────────── finished ╮
+│ round 10 of 10 · probes 50 of 300 · at most 30 a second                                                              │
+│ ttl  answered by                                    repl/sent     last      avg     best    worst                    │
+│   1  192.168.1.1                                        10/10      1.0      1.0      1.0      1.0                    │
+│   2  *                                                   0/10        —        —        —        —                    │
+│        ↳ does not send ICMP Time Exceeded — not evidence of loss                                                     │
+│   3  10.20.0.1, 5 time(s)                               10/10      6.0      6.0      6.0      6.0                    │
+│        also 10.20.0.9, 5 time(s)                                                                                     │
+│        ↳ several addresses: per-flow load balancing (ECMP) or a route change                                         │
+│   4  198.51.100.14 (ae-4.core1.example.net)             10/10     48.0     48.0     48.0     48.0                    │
+│        ↳ hop RTT reflects that router's own reply handling and return path                                           │
+│   5  1.1.1.1 — destination                              10/10     12.0     12.0     12.0     12.0                    │
+│                                                                                                                      │
+│ This is an ICMP trace. DNS-over-UDP and HTTPS traffic to the same address may take another path.                     │
+│ Each row is its own round trip: rows are not additive, and one must not be subtracted from the next.                 │
+│ If the destination is an anycast address, the answering site can change over time and between protocols.             │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ Enter start · t stop · n names · j/k scroll · Esc back (stops it) · ? · q

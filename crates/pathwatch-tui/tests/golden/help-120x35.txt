@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:00
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                    [DEMO: synthetic data · scenario healthy]
+╭─ 1 Cloudflare ─────────────╮╭─ 2 Google ─────────────────╮╭─ 3 NextDNS ────────────────╮╭─ 4 Arelion ────────────────╮
+│ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 ││ ● OK             ICMP · v4 │
+│ 1.1.1.1                    ││ 8.8.8.8                    ││ 203.0.113.28               ││ 198.51.100.7               │
+│  12.2 ms    last 1.0 s ago ││  18.1 ms    last 0.7 s ago ││  24.5 ms    last 0.5 s ago ││  31.7 ms    last 0.2 s ago │
+│ p50 12.0  p95 12.5╭─ Keys ────────────────────────────────── ? what the numbers mean · Esc close ╮  p95 32.6  Δ 1.1  │
+│ no-reply 0.0 %    │                                                                              │ 0.0 %      0 / 60 │
+│ n 60 · coverage 10│  1 2 3 4         focus that provider                                         │overage 100 %      │
+│ ▅▅▅▅▄▅▇▆▄▄▇▃▇▂▇▁▅█│  h l  ← →  Tab   previous / next provider; in details, previous / next tab   │▅▅▃▁▃▆▂▆▅▆▂▅▅▇▇▇▇▆ │
+╰───────────────────│  Enter           details for the focused provider                            │───────────────────╯
+╭─ Latency · ICMP ec│  j k  ↓ ↑  g G   in details: scroll a list; top / bottom                     │ NextDNS · Arelion ╮
+│  40 ┤             │  Esc             back; closes help, the cursor, or a prompt first            │                   │
+│     │⣀⣠⠤⢤⣀⣠⠤⢤⣠⠤⢤⣀⣀│  m  M            next / previous measurement mode                            │⣀   ⢠⢤ ⢠⠤⠤⠤⢤⣀⣠⠤ AR │
+│  30 ┤             │  f               switch address family, IPv4 ↔ IPv6                          │⠈⠉⠉⠉⠉⠈⠉⠉           │
+│     │⠒⠒⠒⠒⠒⠚⠉⠙⠚⠉⠙⠒⠚│  +  -            longer / shorter time window                                │⠉⠉⠙⠒⠚⠉⠉⠉⠉⠙⠒⠚⠉⠉⠉ ND │
+│  20 ┤⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒⠒│  Space           freeze / unfreeze the view (collection continues)           │⠒⠒⠒⠒⠲⠴⠒⠒⠒⠒⠒⠒⠒⠒⠒ GO │
+│     │⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤⠤│  c               chart cursor: h l move it, H L by ten; values in the footer │⠤⠤⠤⠤⠴⠲⠤⠤⠤⠤⠤⠤⠤⠤⠤ CF │
+│  10 ┤             │  a               compact layout: all four series ↔ focused only              │                   │
+│     │             │  P               stop / resume collection (asks first; recorded as a gap)    │                   │
+│   0 └─────────────│  R               reload the configuration; unchanged streams keep running    │───────────────    │
+│      -1m          │  t               route trace to the focused provider: Enter starts, t stops  │            now    │
+╰───────────────────│  Ctrl-Z          suspend to the shell; fg resumes                            │───────────────────╯
+╭─ Outcomes · same t│  Ctrl-L          redraw                                                      │───────────────────╮
+│ 1 CF ·············│  ?               this help; again for what the words and numbers mean        │···············    │
+│ 2 GO ·············│  q  Ctrl-C       quit and restore the terminal                               │···············    │
+│ 3 ND ·············│                                                                              │···············    │
+│ 4 AR ·············╰──────────────────────────────────────────────────────────────────────────────╯···············    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Events ────────────────────────────────────────────────────────────────────────────────────── newest first · 0 of 0 ╮
+│ no events yet                                                                                                        │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ 1-4 · Enter · m mode · f family · +/- window · Space freeze · c cursor · ? help · q

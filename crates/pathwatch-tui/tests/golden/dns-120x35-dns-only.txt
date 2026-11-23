@@ -1,0 +1,35 @@
+ pathwatch ▸ DEMO   mode ICMP echo   family IPv4   via 192.0.2.10   up 01:10
+ window 1 m · PLAYING · ICMP: unprivileged datagram socket                   [DEMO: synthetic data · scenario dns-only]
+ 1 Cloudflare   Streams   Distribution  [DNS]  Raw   Events
+╭─ DNS · what each query returned, per stream ───────────────────────────────────────────────────────────────── 9 rows ╮
+│ dns-udp v4                                                                                                           │
+│   last  00:01:05.100  example.com. A → timeout                                                                       │
+│   query                        type   expect      sent  result × count                                               │
+│   .                            NS     noerror        5  NOERROR × 3 · SERVFAIL × 1 · timeout × 1                     │
+│   example.com.                 A      answer         5  NOERROR × 3 · SERVFAIL × 1 · timeout × 1                     │
+│   wikipedia.org.               AAAA   answer         4  NOERROR × 2 · SERVFAIL × 2                                   │
+│                                                                                                                      │
+│ A result is what the resolver returned (its response code) or, with no response, what happened instead.              │
+│ DNS times are cache-influenced: they describe the resolver's answer, not the network path alone.                     │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+│                                                                                                                      │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+ 1 Cloudflare │ 1 m │ PLAYING │ h/l tab · j/k scroll · 1-4 provider · m mode · f family · Esc back · ? · q

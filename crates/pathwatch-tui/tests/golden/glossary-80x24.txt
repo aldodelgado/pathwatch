@@ -1,0 +1,24 @@
+╭─ What the words and numbers mean ── 1–20 of 47 · j k scroll · ? or Esc close ╮
+│                                                                              │
+│ Times                                                                        │
+│  last            the newest answered round trip                              │
+│  p50             the median round trip; needs 5 answers                      │
+│  p95             the 95th percentile, nearest rank; needs 20 answers         │
+│  p99             the 99th percentile; needs 100 answers                      │
+│  mean            the arithmetic mean; needs 5; pulled by outliers            │
+│  min  max        the fastest and the slowest answered round trip             │
+│  sd              sample standard deviation; needs 20 answers                 │
+│  Δ               mean change between consecutive answers; needs 10 pairs     │
+│  n               how many round trips the times above rest on                │
+│                                                                              │
+│ Shares                                                                       │
+│  no-reply        (timed out + unreachable) ÷ finalised; not proof of loss    │
+│  err-resp        answers that were errors or not as expected ÷ finalised     │
+│  cov             probes sent ÷ probes the window has room for                │
+│                                                                              │
+│ Counts                                                                       │
+│  sent            probes that left this host                                  │
+│  pending         sent, and the deadline has not passed yet                   │
+│  replied         answered as expected, in time                               │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
