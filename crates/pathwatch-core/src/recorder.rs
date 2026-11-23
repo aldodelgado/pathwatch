@@ -1,5 +1,5 @@
 //! Recording a session to disk, reading a recording back, and preparing one
-//! for replay. See `planning/02-architecture.md` §7.
+//! for replay. See `docs/design/architecture.md` §7.
 //!
 //! A recording is the session's records as JSON lines, in the order the
 //! processor received them, in numbered segments under one directory per
@@ -123,11 +123,16 @@ impl Segment for fs::File {
 
 impl Storage for Files {
     fn create(&mut self, path: &Path) -> io::Result<Box<dyn Segment>> {
+        use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+        // A recording says where this host sits in its network: its address,
+        // its interface, where it sends and what it is configured to do. It
+        // is the owner's to read and nobody else's — the directories made
+        // here and the file, whatever the umask would have allowed.
         if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir)?;
+            fs::DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
         }
         // Never overwrite: a segment that exists belongs to another session.
-        Ok(Box::new(fs::OpenOptions::new().write(true).create_new(true).open(path)?))
+        Ok(Box::new(fs::OpenOptions::new().write(true).create_new(true).mode(0o600).open(path)?))
     }
 
     fn free_bytes(&self, dir: &Path) -> Option<u64> {
@@ -345,13 +350,32 @@ impl Recorder {
     }
 }
 
-/// Every segment under `root`, oldest first, with its size.
-fn segments(root: &Path) -> io::Result<Vec<(std::time::SystemTime, PathBuf, u64)>> {
+/// Whether a file is a segment this program wrote: a regular file named as
+/// segments are named, `NNNNNN.jsonl`, that opens with a segment header.
+/// Retention deletes files, so it asks this of every file it would count.
+fn is_segment(path: &Path) -> bool {
+    use std::io::Read;
+    let named = path.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_suffix(".jsonl")).is_some_and(|n| n.len() == 6 && n.bytes().all(|b| b.is_ascii_digit()));
+    if !named || !fs::symlink_metadata(path).is_ok_and(|m| m.is_file()) {
+        return false;
+    }
+    let mut start = [0u8; 48];
+    let read = fs::File::open(path).and_then(|mut f| f.read(&mut start)).unwrap_or(0);
+    let start = String::from_utf8_lossy(&start[..read]);
+    start.strip_prefix("{\"schema\":").is_some_and(|rest| rest.trim_start_matches(|c: char| c.is_ascii_digit()).starts_with(",\"kind\":\"segment\""))
+}
+
+/// Every segment under `root`, oldest first, with its size. Only this
+/// program's own: a directory that is reached through a link, a file with
+/// another name, and a `.jsonl` file that is not a recording are not listed,
+/// so they are neither counted against the cap nor deleted for it.
+fn segments(root: &Path, keep: &Path) -> io::Result<Vec<(std::time::SystemTime, PathBuf, u64)>> {
     let mut found = Vec::new();
-    for session in fs::read_dir(root)?.flatten().filter(|e| e.path().is_dir()) {
+    for session in fs::read_dir(root)?.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())) {
         for seg in fs::read_dir(session.path())?.flatten() {
             let path = seg.path();
-            if path.extension().is_some_and(|e| e == "jsonl")
+            // The one being written may not have its header on disk yet.
+            if (path == keep || is_segment(&path))
                 && let Ok(meta) = seg.metadata()
             {
                 found.push((meta.modified().unwrap_or(std::time::UNIX_EPOCH), path, meta.len()));
@@ -362,10 +386,11 @@ fn segments(root: &Path) -> io::Result<Vec<(std::time::SystemTime, PathBuf, u64)
     Ok(found)
 }
 
-/// Deletes the oldest segments until everything under `root` fits in `cap`.
-/// The segment being written is never deleted. Returns what was removed.
+/// Deletes the oldest segments until this program's recordings under `root`
+/// fit in `cap`. The segment being written is never deleted, and neither is
+/// anything this program did not write. Returns what was removed.
 pub fn enforce_cap(root: &Path, cap: u64, keep: &Path) -> io::Result<Vec<PathBuf>> {
-    let all = segments(root)?;
+    let all = segments(root, keep)?;
     let mut total: u64 = all.iter().map(|(_, _, n)| n).sum();
     let mut removed = Vec::new();
     for (_, path, len) in all {
@@ -411,7 +436,7 @@ pub fn read(path: &Path) -> io::Result<Recording> {
     let mut rec = Recording { segments: files.len(), ..Recording::default() };
     let mut session_started = false;
     for file in &files {
-        let name = file.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+        let name = file.file_name().map_or_else(String::new, |n| crate::sanitize::clean(&n.to_string_lossy(), 120));
         let mut reader = io::BufReader::new(fs::File::open(file)?);
         let (mut buf, mut n, mut unreadable) = (Vec::new(), 0u64, 0u64);
         let (mut warned_newer, mut warned_unreadable) = (false, false);
@@ -442,7 +467,7 @@ pub fn read(path: &Path) -> io::Result<Recording> {
                 }
                 continue;
             }
-            match serde_json::from_str::<Line>(text) {
+            match parse_line(text) {
                 Ok(line) => match line.record {
                     // Headers and the opening record repeat in every segment.
                     Record::Segment(h) => {
@@ -461,7 +486,9 @@ pub fn read(path: &Path) -> io::Result<Recording> {
                     unreadable += 1;
                     if !warned_unreadable {
                         warned_unreadable = true;
-                        rec.warnings.push(format!("{name} line {n}: not a record this program reads ({e}); skipped"));
+                        // The parser quotes what it could not read, which is the file's text.
+                        let why = crate::sanitize::clean(&e.to_string(), 200);
+                        rec.warnings.push(format!("{name} line {n}: not a record this program reads ({why}); skipped"));
                     }
                 }
             }
@@ -471,6 +498,46 @@ pub fn read(path: &Path) -> io::Result<Recording> {
         }
     }
     Ok(rec)
+}
+
+/// One line of a recording as a record, with its text made safe to show.
+///
+/// A recording is a file, and a file can come from anywhere: text in it is
+/// as untrusted as text off the network, and is cleaned here, where it is
+/// read, the way live text is cleaned where it is produced. Our own writer
+/// escapes control characters as JSON `\u` escapes and JSON forbids them
+/// raw, so a line with no backslash and nothing at or above DEL has nothing
+/// to clean and is parsed directly.
+fn parse_line(text: &str) -> serde_json::Result<Line> {
+    if !text.bytes().any(|b| b == b'\\' || b >= 0x7f) {
+        return serde_json::from_str(text);
+    }
+    let mut value: serde_json::Value = serde_json::from_str(text)?;
+    clean_value(&mut value, false);
+    serde_json::from_value(value)
+}
+
+/// Cleans every string in `v`. The recorded configuration is TOML and keeps
+/// its line breaks; nothing else in a record is more than one line.
+fn clean_value(v: &mut serde_json::Value, multiline: bool) {
+    use serde_json::Value;
+    match v {
+        Value::String(s) => {
+            if s.chars().any(crate::sanitize::is_unsafe) {
+                *s = if multiline { crate::sanitize::clean_multiline(s) } else { crate::sanitize::clean(s, usize::MAX) };
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(|item| clean_value(item, multiline)),
+        Value::Object(map) => {
+            if map.keys().any(|k| k.chars().any(crate::sanitize::is_unsafe)) {
+                *map = std::mem::take(map).into_iter().map(|(k, v)| (crate::sanitize::clean(&k, usize::MAX), v)).collect();
+            }
+            for (key, item) in map.iter_mut() {
+                clean_value(item, key == "config");
+            }
+        }
+        _ => {}
+    }
 }
 
 // ───────────────────────────── replay ─────────────────────────────

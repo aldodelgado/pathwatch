@@ -1,6 +1,7 @@
-# Licence and advisory policy for `cargo deny`. Not yet run locally (cargo-deny
-# is not installed here); the allow-list reflects the licences recorded in
-# planning/02-architecture.md §3.1 and may need additions on first run.
+# Licence and advisory policy for `cargo deny`, run by the `licences` job in
+# .github/workflows/ci.yml. The allow-list is the set of licences the
+# dependency tree uses; a new dependency under another licence fails the job
+# until its licence is reviewed and added here.
 [licenses]
 allow = [
     "MIT",

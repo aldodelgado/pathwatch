@@ -2,7 +2,7 @@
 //!
 //! Colour means identity: a provider keeps its colour in every view. Health is
 //! carried by a symbol and a word, so it survives monochrome and never fights
-//! the identity colour. See `planning/01-design-spec.md` §9.4–9.5.
+//! the identity colour. See `docs/design/design.md` §9.4–9.5.
 
 use pathwatch_core::snapshot::{Cell, Status};
 use ratatui::style::{Color, Modifier, Style};

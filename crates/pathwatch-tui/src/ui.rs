@@ -1,5 +1,5 @@
 //! Screen composition for the three layouts. See
-//! `planning/01-design-spec.md` §9.2 for the sketches these follow.
+//! `docs/design/design.md` §9.2 for the sketches these follow.
 
 use pathwatch_core::model::Outcome;
 use pathwatch_core::snapshot::{Card, Cell, Snapshot, Status, human_duration, outcome_word};

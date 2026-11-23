@@ -36,7 +36,17 @@ fn a_burst_of_replies_left_unread_is_all_still_there_to_read() {
     use pathwatch_core::platform::icmp_sock::{IcmpSocket, V4_INCLUDES_IP_HEADER};
     use pathwatch_core::probe::icmp_packet::{self, Parsed, Token};
     const BURST: u64 = 60;
-    let sock = IcmpSocket::open(Family::V4).expect("an unprivileged ICMP socket");
+    // Where the host does not permit unprivileged ICMP there is no buffer to
+    // fill. `PATHWATCH_REQUIRE_ICMP` says the host is known to permit it.
+    let sock = match IcmpSocket::open(Family::V4) {
+        Ok(sock) => sock,
+        Err(e) => {
+            let why = pathwatch_core::capability::explain_icmp_open_error(Family::V4, &e);
+            assert!(std::env::var_os("PATHWATCH_REQUIRE_ICMP").is_none_or(|v| v.is_empty()), "PATHWATCH_REQUIRE_ICMP is set and {why}");
+            eprintln!("not run: {why}");
+            return;
+        }
+    };
     let nonce = 0x6275_7273 ^ std::process::id();
     for seq in 0..BURST {
         let packet = icmp_packet::build_echo(Family::V4, 0x7077, Token { nonce, stream: 9, seq }, 56);

@@ -1,7 +1,7 @@
 //! Unprivileged ICMP datagram sockets (`SOCK_DGRAM` + `IPPROTO_ICMP[V6]`).
 //!
 //! What the socket delivers differs by system (verified against kernel and XNU
-//! source; see `planning/02-architecture.md` §3.2):
+//! source; see `docs/design/architecture.md` §3.2):
 //!
 //! | | Linux | macOS |
 //! |---|---|---|

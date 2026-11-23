@@ -195,8 +195,29 @@ fn the_size_cap_deletes_the_oldest_segments_and_never_the_one_being_written() {
     let old_dir = old.directory().to_path_buf();
     assert!(std::fs::read_dir(&old_dir).unwrap().count() > 3);
 
+    // Things in the same directory that are not this program's recordings:
+    // someone's own JSON lines, a file with a segment's name that is not
+    // one, a directory reached through a link. Larger than the cap, and
+    // older than everything else.
+    let theirs = root.join("their-data");
+    std::fs::create_dir_all(&theirs).unwrap();
+    let elsewhere = dir("cap-elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    let foreign = [theirs.join("results.jsonl"), theirs.join("000001.jsonl"), old_dir.join("notes.jsonl"), elsewhere.join("000001.jsonl")];
+    for f in &foreign {
+        std::fs::write(f, "{\"mine\":true}\n".repeat(8_000)).unwrap();
+    }
+    // A real segment's first line, in a directory that is only linked to.
+    std::fs::write(&foreign[3], format!("{}\n{}", Line::new(Record::Segment(header("linked"))).to_json(), "x".repeat(100_000))).unwrap();
+    std::os::unix::fs::symlink(&elsewhere, root.join("linked")).unwrap();
+
     let cap = 60_000;
     let (rec, _) = record(&sc, Options { rotate_bytes: 20_000, max_total_bytes: cap, ..options(root.clone()) });
+    for f in &foreign {
+        assert!(f.exists(), "{} is not a recording of ours and was deleted", f.display());
+    }
+    std::fs::remove_file(&foreign[2]).unwrap();
+    let _ = std::fs::remove_dir(&old_dir);
     let size = |d: &Path| -> u64 { std::fs::read_dir(d).map(|it| it.flatten().map(|e| e.metadata().unwrap().len()).sum()).unwrap_or(0) };
     assert!(!old_dir.exists(), "the older session went first, and its empty directory with it");
     let kept: Vec<String> = {
@@ -342,6 +363,106 @@ fn unknown_lines_are_skipped_with_one_warning_and_a_recording_without_streams_is
     let err = recorder::prepare(recorder::read(&d.join("b.jsonl")).unwrap()).err().unwrap();
     assert!(err.contains("no session record"), "{err}");
     assert!(recorder::read(&d.join("missing.jsonl")).is_err() && recorder::read(&dir("empty-nonexistent")).is_err());
+}
+
+/// Every string in a value, with the key it was found under.
+fn strings(v: &serde_json::Value, key: &str, out: &mut Vec<(String, String)>) {
+    match v {
+        serde_json::Value::String(s) => out.push((key.to_string(), s.clone())),
+        serde_json::Value::Array(items) => items.iter().for_each(|i| strings(i, key, out)),
+        serde_json::Value::Object(map) => map.iter().for_each(|(k, i)| strings(i, k, out)),
+        _ => {}
+    }
+}
+
+#[test]
+fn a_recording_is_readable_by_its_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let root = dir("private").join("made").join("for-this");
+    let sc = script::by_name("healthy").unwrap();
+    let (rec, _) = record(&sc, options(root.clone()));
+    let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode(&rec.directory().join("000001.jsonl")), 0o600);
+    // The session's directory, and every directory that had to be made for it.
+    assert_eq!(mode(rec.directory()), 0o700);
+    assert_eq!(mode(&root), 0o700);
+    assert_eq!(mode(root.parent().unwrap()), 0o700);
+}
+
+#[test]
+fn text_in_a_recording_is_cleaned_as_it_is_read() {
+    // A recording is a file, and a file can come from anyone. Whatever it
+    // holds — a title-setting escape sequence, a clipboard write, a C1
+    // control, a bidirectional override, a DEL — is text by the time the
+    // program has it, in every field of every kind of record.
+    const HOSTILE: &str = "\u{1b}]0;INJECTED\u{7}\u{1b}]52;c;eA==\u{1b}\\\u{9b}31m\u{202e}\u{7f}\r";
+    let d = dir("hostile");
+    std::fs::create_dir_all(&d).unwrap();
+    let sc = script::by_name("healthy").unwrap();
+    let session_id = format!("s1{HOSTILE}");
+    let mut hdr = header(&session_id);
+    hdr.providers[0].name = format!("Cloud{HOSTILE}flare");
+    hdr.config = format!("[general]\n\tfamilies = [\"ipv4\"]{HOSTILE}\n");
+    let event = Record::Event(EventRec {
+        session: session_id.as_str().into(),
+        at_ns: 1,
+        utc: format!("2026-11-21T00:00:00.000Z{HOSTILE}"),
+        event: format!("note{HOSTILE}"),
+        stream: Some(format!("cloudflare/resolver-v4/icmp/4{HOSTILE}").into()),
+        detail: format!("line one\nline two{HOSTILE}"),
+    });
+    let lines = [
+        Line::new(Record::Segment(hdr)).to_json(),
+        Line::new(session_start(&sc, &session_id)).to_json(),
+        Line::new(event).to_json(),
+        // Not a record at all, and the parser quotes what it could not read.
+        format!("{{\"schema\":1,\"kind\":\"holo{}gram\"}}", "\\u001b]0;INJECTED\\u0007"),
+    ];
+    let name = d.join("a.jsonl");
+    std::fs::write(&name, lines.join("\n") + "\n").unwrap();
+    let raw = std::fs::read_to_string(&name).unwrap();
+    assert!(raw.contains("\\u001b]0;INJECTED") && raw.contains('\u{9b}') && raw.contains('\u{202e}'), "the file holds what it was given, escaped by JSON or raw");
+
+    let back = recorder::read(&name).unwrap();
+    assert_eq!(back.records.len(), 2, "{:?}", back.warnings);
+    assert_eq!(back.warnings.len(), 1, "{:?}", back.warnings);
+    let mut found = Vec::new();
+    for record in back.header.clone().map(Record::Segment).into_iter().chain(back.records.iter().cloned()) {
+        strings(&serde_json::to_value(Line::new(record)).unwrap(), "", &mut found);
+    }
+    found.extend(back.warnings.iter().map(|w| ("warning".to_string(), w.clone())));
+    assert!(found.len() > 20, "every field was looked at: {}", found.len());
+    for (key, text) in &found {
+        let allowed = |c: char| key == "config" && (c == '\n' || c == '\t');
+        assert!(!text.chars().any(|c| pathwatch_core::sanitize::is_unsafe(c) && !allowed(c)), "{key}: {text:?}");
+    }
+    // Made visible, not removed: the reader can see what was there.
+    let h = back.header.as_ref().unwrap();
+    assert!(h.session.starts_with("s1\\x1b]0;INJECTED\\x07") && h.session.ends_with("\\x9b31m\\u{202e}\\x7f\\x0d"), "{}", h.session);
+    assert!(h.config.starts_with("[general]\n\tfamilies = [\"ipv4\"]\\x1b]0;INJECTED") && h.config.ends_with("\\x0d\n"), "a configuration keeps its lines: {:?}", h.config);
+    assert!(back.warnings[0].contains("\\x1b]0;INJECTED"), "{:?}", back.warnings);
+    // And it still replays: the ids changed the same way everywhere.
+    let replay = recorder::prepare(back).unwrap();
+    assert!(replay.session.starts_with("s1\\x1b") && replay.providers[0].name.starts_with("Cloud\\x1b"));
+}
+
+#[test]
+fn a_recording_with_nothing_to_clean_is_read_as_it_was_written() {
+    // The cleaning is not a rewrite: text outside ASCII that is safe to show,
+    // and quotes and backslashes, come back exactly.
+    let d = dir("clean-untouched");
+    std::fs::create_dir_all(&d).unwrap();
+    let event = Record::Event(EventRec {
+        session: "s1".into(),
+        at_ns: 1,
+        utc: "2026-11-21T00:00:00.000Z".into(),
+        event: "note".into(),
+        stream: None,
+        detail: "‹redacted:nextdns-profile› — 12 ms · \"quoted\" C:\\path naïve 日本".into(),
+    });
+    std::fs::write(d.join("a.jsonl"), Line::new(event.clone()).to_json() + "\n").unwrap();
+    let back = recorder::read(&d.join("a.jsonl")).unwrap();
+    assert_eq!(back.records, [event]);
 }
 
 #[test]

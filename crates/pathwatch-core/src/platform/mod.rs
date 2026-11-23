@@ -1,7 +1,7 @@
 //! Everything that touches `libc` directly lives under this module.
 //!
 //! The two supported systems differ in what an unprivileged ICMP datagram
-//! socket delivers; see `planning/02-architecture.md` §3.2 and §5.
+//! socket delivers; see `docs/design/architecture.md` §3.2 and §5.
 
 pub mod icmp_sock;
 

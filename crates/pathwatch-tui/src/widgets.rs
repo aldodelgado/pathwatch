@@ -10,6 +10,11 @@ use ratatui::style::{Modifier, Style};
 use crate::theme::{ColorMode, Glyphs, Theme};
 
 /// Writes `text` at (`x`, `y`), clipped to `area`. Never panics on a small terminal.
+///
+/// A cell is sent to the terminal as it is, so a control character or a
+/// bidirectional override never goes into one: whatever the text's source,
+/// it is drawn as `?`. Text is cleaned where it enters the program; this is
+/// the last line of defence, not the first.
 pub fn put(buf: &mut Buffer, area: Rect, x: u16, y: u16, text: &str, style: Style) {
     let area = area.intersection(buf.area);
     if y < area.y || y >= area.bottom() || x >= area.right() {
@@ -20,6 +25,7 @@ pub fn put(buf: &mut Buffer, area: Rect, x: u16, y: u16, text: &str, style: Styl
             break;
         }
         if cx >= area.x {
+            let ch = if pathwatch_core::sanitize::is_unsafe(ch) { '?' } else { ch };
             buf[(cx, y)].set_char(ch).set_style(style);
         }
     }
@@ -561,6 +567,14 @@ mod tests {
 
     fn text(buf: &Buffer, area: Rect) -> String {
         (area.y..area.bottom()).map(|y| (area.x..area.right()).map(|x| buf[(x, y)].symbol().to_string()).collect::<String>()).collect::<Vec<_>>().join("\n")
+    }
+
+    #[test]
+    fn a_cell_never_holds_a_control_character_or_an_override() {
+        let area = Rect::new(0, 0, 12, 1);
+        let mut buf = Buffer::empty(area);
+        put(&mut buf, area, 0, 0, "a\u{1b}]0;x\u{7}\u{9b}\u{202e}\nz", Style::default());
+        assert_eq!(text(&buf, area), "a?]0;x????z ");
     }
 
     fn inactive(status: Status) -> Card {

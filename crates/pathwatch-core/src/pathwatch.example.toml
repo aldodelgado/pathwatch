@@ -1,7 +1,7 @@
 # pathwatch configuration: the built-in defaults, as a commented file.
 #
 # `pathwatch config example` prints this file, and `pathwatch config reference` explains every
-# setting in it. `pathwatch` is a placeholder executable name.
+# setting in it.
 #
 # Location:    ~/.config/pathwatch/config.toml ($XDG_CONFIG_HOME/pathwatch/config.toml where that is
 #              set), or the file named by --config or PATHWATCH_CONFIG. `pathwatch config path` says which.
@@ -130,7 +130,7 @@ protocols = ["doh"]
 # resolved, so a filtering or rewriting local resolver cannot redirect the stream
 # (it would then measure that filter, not Cloudflare). The hostname is still the
 # TLS server name and the certificate is still verified against it. One address
-# per family is used. Verified 2026-11-21: 1.1.1.1 serves this hostname.
+# per family is used; the two below are Cloudflare's resolver addresses, which serve this hostname.
 # The cost: the stream does not follow Cloudflare if this service moves. To resolve
 # the hostname instead, remove `addresses` and set `follow = true`.
 addresses = ["1.1.1.1", "2606:4700:4700::1111"]
@@ -176,7 +176,7 @@ protocols = ["dot"]
 
 # NextDNS — DISABLED until you supply your own endpoint.
 # The profile ID is sensitive: prefer the environment variable over writing it here.
-# It is masked in the UI and redacted from logs, recordings shared with --redact, and exports.
+# It is masked on screen and removed from recordings as they are written.
 [providers.nextdns]
 name           = "NextDNS"
 slot           = 3
@@ -213,7 +213,7 @@ address   = "<nextdns-ipv6-address-from-your-setup-page>"
 protocols = ["icmp", "dns-udp"]
 
 # Twelve99 / Arelion — DISABLED until you supply the two addresses.
-# Decided 2026-11-21: BOTH targets, as separate streams that are never merged.
+# Two targets, kept as separate streams that are never merged:
 #   router:   a backbone router you see in your own traces. ICMP only; it is a hop, not a service.
 #   resolver: one of the resolver addresses Arelion lists in its IP-assignment document. Whether it
 #             answers DNS for you is unknown until tested; DoT and DoH are not documented.

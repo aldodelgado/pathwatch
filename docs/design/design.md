@@ -1,26 +1,16 @@
-# 01 · Design specification
+# pathwatch — design
 
-**Status:** draft for review · 2026-11-21 · planning only, no application code exists.
-**Executable name:** `pathwatch` is a **placeholder** used throughout this package; the real name is an open question ([04 §3](04-references-and-open-questions.md#3-decisions-that-need-your-input)).
+This is the design the implementation follows: what `pathwatch` measures, how every number on screen is defined, and how the screens, keys, commands and configuration behave. Where the implementation differs from the design or stops short of it, the section says so in a note marked **As built** or **Not built**. [`ROADMAP.md`](../../ROADMAP.md) tracks what is not built and what has not been verified.
 
-Claim labels used in all four documents:
-
-| Label | Meaning |
-|---|---|
-| **[V]** | Verified today against a primary source listed in [04 §1](04-references-and-open-questions.md#1-sources) |
-| **[R]** | Engineering recommendation (a design choice, not a fact) |
-| **[A]** | Assumption, listed in [04 §2](04-references-and-open-questions.md#2-assumptions) |
-| **[T]** | Must be validated at implementation time; nothing in this package claims it works |
-
-Nothing here was measured on your network. No probe, trace, or load test was run. No screenshot was attached to the request, so the layouts below are proposals, not a reconstruction of your current setup.
+Claim labels: **[V]** verified against a primary source · **[R]** engineering recommendation · **[A]** assumption · **[T]** to be validated. Sources and assumptions are listed in [references.md](references.md). How the program is built is in [architecture.md](architecture.md); how it is checked is in [verification.md](verification.md).
 
 ---
 
 ## 1. Product goals and scope
 
-**Goal.** One terminal instrument that replaces the `trippy` + `gping` + `ping` + `prettyping` combination for one job: continuously watching four named providers (Cloudflare, Google, NextDNS, Twelve99/Arelion) and telling you, truthfully and at a glance, which one is misbehaving, on which protocol and address family, and since when.
+**Goal.** One terminal instrument that does the one job otherwise spread across `trippy`, `gping`, `ping` and `prettyping`: continuously watching four named providers (Cloudflare, Google, NextDNS, Twelve99/Arelion) and showing, truthfully and at a glance, which one is misbehaving, on which protocol and address family, and since when.
 
-**Equal priorities.** (1) Measurements whose definitions you can read and whose denominators you can check. (2) A dashboard that is pleasant to leave open for days.
+**Equal priorities.** (1) Measurements whose definitions can be read and whose denominators can be checked. (2) A dashboard that is pleasant to leave open for days.
 
 **In scope**
 
@@ -31,7 +21,7 @@ Nothing here was measured on your network. No probe, trace, or load test was run
 - Bounded in-memory history, opt-in JSONL recording, export, deterministic replay.
 - macOS and Linux, IPv4 and IPv6, unprivileged by default.
 
-**Out of scope for the initial releases** (deferred unless a real need appears): web dashboard, cloud account, external notifications, automatic remediation, speed/throughput tests, distributed collectors, a general plugin system, Windows.
+**Out of scope** (deferred unless a real need appears): web dashboard, cloud account, external notifications, automatic remediation, speed/throughput tests, distributed collectors, a general plugin system, Windows.
 
 **What the instrument never claims.** Bandwidth, throughput capacity, one-way delay, complete Internet availability, or a definitive ISP fault. There is no composite "health score".
 
@@ -44,21 +34,23 @@ A provider label is not an endpoint. Six things are modelled separately and ever
 | Concept | Definition | Example (illustrative) |
 |---|---|---|
 | **Provider** | A display slot (1–4) with a name and an identity colour. Owns zero or more targets. | `cloudflare` |
-| **Target** | What you configured: a literal IP, or a hostname plus a role. | `1.1.1.1`, or `dns.nextdns.io` as a DoH endpoint |
+| **Target** | What is configured: a literal IP, or a hostname plus a role. | `1.1.1.1`, or `dns.nextdns.io` as a DoH endpoint |
 | **Destination** | The IP address actually dialled for a probe. Equal to the target for literal IPs; the result of a recorded resolution for hostnames. | `1.1.1.1` |
 | **Stream** | The unit of scheduling and statistics: one (target, protocol, address family, scenario) tuple. Statistics are never computed across streams. | Cloudflare · ICMP · IPv4 |
 | **Source context** | Egress interface name and index, local source address, default gateway, and whether the interface looks like a tunnel. Captured at start and on every network change. | `en0`, `192.0.2.10`, gw `192.0.2.1` |
 | **Connection state** | For TCP-based transports: connection id, fresh or reused, age, negotiated ALPN, TLS version, resumed or full handshake. | DoH conn #1, reused, `h2`, 05:00 old |
 
-**Destination epochs.** When a hostname target resolves to a different address and the selection policy (§3.3) switches to it, the stream starts a new *destination epoch*. An `address_changed` event is recorded, the chart draws a vertical marker, and **statistics cover the current epoch only** — two different destinations are never pooled into one percentile. Earlier epochs stay visible in the chart and raw view.
+**Destination epochs.** When a hostname target resolves to a different address and the selection policy (§3.4) switches to it, the stream starts a new *destination epoch*. An `address_changed` event is recorded, the chart draws a vertical marker, and **statistics cover the current epoch only** — two different destinations are never pooled into one percentile. Earlier epochs stay visible in the chart and raw view.
 
-**Family separation.** IPv4 and IPv6 are different streams with separate card states. The overview shows one family at a time (`f` toggles); a small per-card badge shows the *other* family's status so a v6 failure stays visible while you look at v4.
+> **Not built:** the chart draws no epoch marker. The change is recorded as an `address_changed` event and listed with `◆` among the events.
+
+**Family separation.** IPv4 and IPv6 are different streams with separate card states. The overview shows one family at a time (`f` toggles); a small per-card badge shows the *other* family's status so a v6 failure stays visible while v4 is on screen.
 
 ---
 
 ## 3. Providers, targets, and capabilities
 
-Everything in this section comes from the providers' own published material, read on 2026-11-21 ([04 §1.4](04-references-and-open-questions.md#14-providers)). **Nothing was probed.** "Not documented" means the provider's documentation does not mention it — not that it does not work.
+Everything in this section comes from the providers' own published material, as read when the design was written ([references.md §1.4](references.md#14-providers)). None of it is a measured result. "Not documented" means the provider's documentation does not mention it — not that it does not work.
 
 ### 3.1 Documented endpoints
 
@@ -71,16 +63,16 @@ Everything in this section comes from the providers' own published material, rea
 | Google | `8.8.8.8`, `8.8.4.4`, `2001:4860:4860::8888`, `2001:4860:4860::8844` | public resolver, UDP/TCP 53 | **[V]** |
 | Google | `https://dns.google/dns-query` | DoH (RFC 8484 GET/POST; request ≤ 512 bytes) | **[V]** |
 | Google | `dns.google` : 853 | DoT | **[V]** |
-| NextDNS | `https://dns.nextdns.io/<profile-id>` | DoH for your profile | **[V]** shape; your profile ID is unknown |
-| NextDNS | `<profile-id>.dns.nextdns.io` : 853 | DoT for your profile (profile ID travels in the TLS server name) | **[V]** shape |
+| NextDNS | `https://dns.nextdns.io/<profile-id>` | DoH for one profile | **[V]** shape; the profile id is the user's own |
+| NextDNS | `<profile-id>.dns.nextdns.io` : 853 | DoT for one profile (the profile id travels in the TLS server name) | **[V]** shape |
 | NextDNS | `45.90.28.0`, `45.90.30.0`, `2a07:a8c0::`, `2a07:a8c1::` | fixed anycast addresses (primary / secondary) | **[V]** in NextDNS's published client source, not in its help articles |
-| NextDNS | per-profile IPv4 / IPv6 addresses, linked IP | plain DNS attributed to your profile | existence **[V]**; your actual addresses are only on your Setup page |
+| NextDNS | per-profile IPv4 / IPv6 addresses, linked IP | plain DNS attributed to one profile | existence **[V]**; the actual addresses are shown only on that profile's Setup page |
 | Arelion | `213.248.100.54` / `2001:2030:c000:4::4` (Stockholm), `213.248.76.210` / `2001:2030:c000:2::4` (Frankfurt), `209.95.129.122` / `2607:41c0:c000:2::4` (New York), `209.170.66.202` / `2607:41c0:c000:4::4` (Los Angeles), `202.163.0.2` / `2407:1600:c000::4` (Singapore) | listed by Arelion as its "public DNS resolvers" | **[V]** in a customer document dated 2023-02-23; no transport, port, access policy, or currency statement |
 | Arelion | `*.ip.twelve99.net` router interface names | backbone router interfaces | **no Arelion documentation**; not a resolver and not a published measurement target |
 
 ### 3.2 Capability matrix
 
-`doc` = documented by the provider. `undoc` = not documented; the application will attempt it only on a target you enabled and labels results *undocumented capability — observed behaviour only*. `n/a` = does not apply. Privilege column: what the **host** needs, detailed in [02 §5](02-architecture.md#5-platform-capability-matrix).
+`doc` = documented by the provider. `undoc` = not documented; the application attempts it only on a target the user enabled and labels results *undocumented capability — observed behaviour only*. `n/a` = does not apply. Privilege row: what the **host** needs, detailed in [architecture.md §5](architecture.md#5-platform-capability-matrix) and in [capabilities.md](../capabilities.md).
 
 | Provider · target | ICMP echo | DNS/UDP | DNS/TCP | DoT | DoH | Route trace | Notes |
 |---|---|---|---|---|---|---|---|
@@ -90,22 +82,22 @@ Everything in this section comes from the providers' own published material, rea
 | NextDNS · fixed anycast IPs | undoc | doc only with a linked IP (IPv4) or per-profile address; no-profile behaviour undoc | undoc | unknown | bootstrap use only | undoc | A different network path from the hostname-steered one — never merged with it |
 | Arelion · listed resolver IPs | undoc | **unknown** | **unknown** | not documented — treated as `UNSUPPORTED` | not documented — treated as `UNSUPPORTED` | undoc | Whether non-customers are served is not stated. A `REFUSED` answer would be a `service_error`, not an outage |
 | Arelion · router hostname | undoc | `UNSUPPORTED` | `UNSUPPORTED` | `UNSUPPORTED` | `UNSUPPORTED` | undoc | Routers commonly rate-limit and de-prioritise ICMP addressed to themselves; expect a noisier no-reply rate than a server |
-| **Host privilege** | none on macOS; Linux needs `ping_group_range` to include your group | none | none | none | none | none on macOS; on Linux depends on the trace backend | |
+| **Host privilege** | none on macOS; Linux needs `ping_group_range` to include the user's group | none | none | none | none | as ICMP echo | |
 
-DoQ and DoH3 are out of scope for the first releases (NextDNS documents them; Cloudflare and Google do not document DoQ).
+DoQ and DoH3 are out of scope and deferred (NextDNS documents them; Cloudflare and Google do not document DoQ).
 
 ### 3.3 Default target policy
 
 | Card | Default | State at first run |
 |---|---|---|
-| 1 Cloudflare | ICMP and DNS/UDP to `1.1.1.1` and `2606:4700:4700::1111`; DoH to `cloudflare-dns.com`, dialled at those same two addresses without resolving the hostname (your decision, 2026-11-21 — see §3.4 on static addresses) | collecting |
+| 1 Cloudflare | ICMP and DNS/UDP to `1.1.1.1` and `2606:4700:4700::1111`; DoH to `cloudflare-dns.com`, dialled at those same two addresses without resolving the hostname (static addresses, §3.4) | collecting |
 | 2 Google | ICMP and DNS/UDP to `8.8.8.8` and `2001:4860:4860::8888`; DoH to `dns.google` | collecting |
-| 3 NextDNS | none — placeholders only | `NEEDS CONFIG` |
-| 4 Arelion | two streams, per your decision: a backbone router (ICMP) and a listed resolver (ICMP, DNS/UDP) — addresses still placeholders | `NEEDS CONFIG` until you supply them |
+| 3 NextDNS | DoH to the profile hostname once a profile id is supplied; nothing before that | `NEEDS CONFIG` |
+| 4 Arelion | two streams: a backbone router (ICMP) and a listed resolver (ICMP, DNS/UDP); both addresses are placeholders | `NEEDS CONFIG` until they are supplied |
 
 - All four cards are always present. An unconfigured card says `NEEDS CONFIG`; a protocol the target does not offer says `UNSUPPORTED`. Neither ever shows a loss percentage, and the application never substitutes an address of its own choosing.
-- **NextDNS** — you confirmed the default (2026-11-21): DoH to your profile hostname. The profile id is supplied at run time through an environment variable; until then the card reads `NEEDS CONFIG`. Plain-DNS addresses from your Setup page remain optional. Two streams are kept distinct when both are configured: *profile endpoint (hostname-steered)* and *fixed anycast address*. The fixed anycast IPs may be offered as an ICMP target only by your explicit choice.
-- **Arelion** — you chose **both** (2026-11-21), as separate streams that are never merged: a specific backbone router you see in your traces (ICMP only; a hop on your path, not a service), and one of the five listed resolver addresses (ICMP, and DNS only if it turns out to answer you). The application will not pick the addresses; the router's address and the resolver city are still needed ([04 §3.1](04-references-and-open-questions.md#31-answers-received-on-2026-11-21)). Reachability and capability testing of both is outstanding work for milestone 1 and is recorded as such.
+- **NextDNS.** The default is DoH to the profile hostname. The provider ships disabled, and the profile id is supplied at run time through an environment variable (`PATHWATCH_NEXTDNS_PROFILE`); until the provider is enabled with an id the card reads `NEEDS CONFIG`. Plain-DNS addresses from the profile's Setup page are optional. Two streams are kept distinct when both are configured: *profile endpoint (hostname-steered)* and *fixed anycast address*. The fixed anycast IPs are an ICMP target only by the user's explicit choice.
+- **Arelion.** Both kinds of target are supported, as separate streams that are never merged: a specific backbone router the user sees in their own traces (ICMP only; a hop on the path, not a service), and one of the five listed resolver addresses (ICMP, and DNS only if it turns out to answer). The application does not pick the addresses. Whether either kind answers is untested ([ROADMAP.md](../../ROADMAP.md)).
 - **Several targets under one provider.** When a provider has more than one target for the same protocol and family, the first enabled one in configuration order is the card's *primary* stream for that mode. For Arelion that is the router in ICMP mode and the resolver in DNS mode. The others appear as a secondary line on the large layout's card and as rows in the detail view's Summary tab, each with its own statistics.
 - Secondary resolver addresses (`1.0.0.1`, `8.8.4.4`, …) are available as additional targets but are off by default to keep the traffic budget small.
 
@@ -115,12 +107,14 @@ DoQ and DoH3 are out of scope for the first releases (NextDNS documents them; Cl
 |---|---|
 | Literal IP targets | used as given; no resolution, one destination epoch for the session |
 | Hostname targets | resolved **off the timing path** before the stream starts and again on refresh; every resolution is recorded: resolver used, duration, all addresses returned, per family |
-| Bootstrap resolver | `system` (default — what your own clients would get, including hostname steering), or an explicit list of resolver IPs (not built yet), or **static addresses on the target** (`addresses = [...]`, built 2026-11-21): the listed address for each family is dialled, the hostname is never resolved, and it remains the TLS server name the certificate is verified against. A statically pinned stream says so in its recorded target (`… via 1.1.1.1`). Use it when the local resolver filters or rewrites the hostname — the first real run showed exactly that for Cloudflare's DoH name |
+| Bootstrap resolver | `system` (default — what the host's own clients get, including hostname steering), or an explicit list of resolver IPs, or **static addresses on the target** (`addresses = [...]`): the listed address for each family is dialled, the hostname is never resolved, and it remains the TLS server name the certificate is verified against. A statically pinned stream says so in its recorded target (`… via 1.1.1.1`). Static addresses are for hosts whose local resolver filters or rewrites the hostname |
 | Selecting among several addresses | per family, take the first address in resolver order and **stay on it** while it remains in the answer set |
 | Refresh | at TTL expiry when the bootstrap resolver exposes TTLs (minimum 30 s), otherwise every 5 minutes |
 | When the selected address leaves the answer set | `follow = true` (default for steered hostnames such as NextDNS): switch, record `address_changed`, start a new destination epoch, reconnect. `follow = false`: keep the pinned address and raise a notice that the hostname no longer resolves to it |
 | Connection reuse across refresh | an established DoT/DoH connection is kept while its address is still valid; it is not torn down merely because a refresh happened |
 | Pooling | never. One stream, one destination at a time; alternatives are visible in the Settings view but not probed unless configured as their own targets |
+
+> **Not built:** an explicit bootstrap resolver list (`bootstrap.servers` has no effect) — a hostname gets its address from the system resolver or from static `addresses` on the target. The system resolver exposes no TTLs, so refresh is always on a fixed interval (`bootstrap.refresh`, 5 minutes by default). There is no Settings view (§9.6); the alternatives are in the recorded resolution.
 
 ### 3.5 Secondary controls
 
@@ -129,7 +123,9 @@ Two optional, visually secondary rows (grey, below or beside the four cards, nev
 - **Gateway** — ICMP echo to the default gateway of the egress interface, discovered from the routing table at start and on every network change. No router administration access, interface name, or address is assumed; if discovery fails the row reads `UNSUPPORTED (no default gateway found)`. Some gateways do not answer echo; that is reported as no-reply on a control, with a note that controls can legitimately be silent.
 - **Local DNS** — explicit DNS/UDP transactions to the resolver address(es) the system is configured to use (read from system configuration, never by timing `getaddrinfo`). On hosts where that address is a loopback stub (`127.0.0.53`, a local forwarder), the row says so, because it then measures the stub plus whatever it forwards to.
 
-Controls exist to answer one question during an incident: *is the local segment still fine?* They are off by default in the example configuration until you confirm you want them.
+Controls exist to answer one question during an incident: *is the local segment still fine?* They are off by default.
+
+> **As built:** the IPv6 gateway control is declined, with the reason, when the gateway is a link-local address (probing it needs an interface scope). The local-DNS control reads `/etc/resolv.conf` and uses one resolver per family, the first listed.
 
 ---
 
@@ -141,28 +137,30 @@ These rules are fixed before any chart is drawn. Every displayed number traces b
 
 - **Durations and deadlines** use a monotonic clock. **Wall-clock UTC** is stored separately per observation for logs and correlation, and is never used to compute a duration. A wall-clock step (NTP, manual change) therefore cannot corrupt an RTT; it is recorded as a `clock_step` event when the wall/monotonic offset moves by more than 500 ms.
 - **`t_send`**: monotonic timestamp read in user space immediately *before* the send system call for the first byte of the probe.
-- **`t_recv`**, ICMP: the moment the **kernel** received the reply. The kernel stamps each arrival; we read our clock immediately after the receive call returns and take off the measured wait between the two (`recv_delay`). Records made this way say `ts_source = "kernel-rx"`. Where no kernel stamp is available, `t_recv` is our read time and the record says `userspace-monotonic`.
-- **`t_recv`**, DNS and DoH: monotonic timestamp read in user space immediately *after* the final byte of the response is read. These are `userspace-monotonic` until they get the same treatment.
-- **RTT = `t_recv − t_send`.** For ICMP this includes the kernel send path and the network round trip, and ends when the kernel takes delivery of the reply; the wait for our process to be scheduled is **excluded** and recorded separately as `recv_delay_us`, with the user-space figure kept as `rtt_user_us`. It is still *not* wire time. (Decided 2026-11-21 after a side-by-side with the system `ping` showed the wait was about 0.8 ms of a 6–7 ms round trip; see [milestone-1-status.md](milestone-1-status.md).) **[R]** Display resolution is 0.1 ms; stored resolution is 1 µs.
+- **`t_recv`**, ICMP: the moment the **kernel** received the reply. The kernel stamps each arrival, but in a different clock domain from the send timestamp, so the stamp is not used as `t_recv` directly. Instead the process reads its own clock immediately after the receive call returns and takes off the measured wait between the kernel's stamp and that read (`recv_delay`). Records made this way say `ts_source = "kernel-rx"`. Where no kernel stamp is available, `t_recv` is the process's read time and the record says `userspace-monotonic`.
+- **`t_recv`**, DNS and DoH: monotonic timestamp read in user space immediately *after* the final byte of the response is read (`userspace-monotonic`).
+- **RTT = `t_recv − t_send`.** For ICMP this includes the kernel send path and the network round trip, and ends when the kernel takes delivery of the reply; the wait for the process to be scheduled is **excluded** and recorded separately as `recv_delay_us`, with the user-space figure kept as `rtt_user_us`. It is still *not* wire time. **[R]** Display resolution is 0.1 ms; stored resolution is 1 µs.
 - **Scheduling uncertainty.** User-space timestamping biases RTT upward, typically by tens to hundreds of microseconds and occasionally by milliseconds when the process is descheduled **[A]**. Two guards make this visible instead of pretending to precision:
   - each observation records `sched_lag` = actual send time − scheduled slot time;
   - a loop-lag monitor timestamps a 50 ms heartbeat on the receive runtime; any observation received while heartbeat lateness exceeds 5 ms is flagged `timing_suspect` and drawn with a hollow marker.
-- Kernel receive timestamps (`SO_TIMESTAMP*`) could remove the receive-side scheduling delay but they live in a different clock domain from our send timestamp. **[R]** They are not used *as* the receive timestamp; `ts_source` records which clock a round-trip time came from so a later backend can change that without ambiguity. Since 2026-11-21 they are used as a **diagnostic**: each ICMP observation records `recv_delay_us`, the time between the kernel receiving the reply and this process reading it, so the instrument's own share of every round trip is visible ([milestone-1-status.md](milestone-1-status.md)).
+- `ts_source` records which clock ended a round-trip time, so a backend can change that without ambiguity.
+
+> **As built:** kernel receive timestamps are used for ICMP only. DNS, DoT and DoH transactions end at the process's read and are recorded as `userspace-monotonic`. The `timing_suspect` flag is set on ICMP observations and named in the Raw tab's notes; no hollow marker is drawn.
 
 ### 4.2 Probe identity and reply matching
 
 - Every probe has a **probe id** = (`session_id`, `stream_id`, `seq`), where `seq` is a 64-bit counter per stream that never wraps in practice.
-- **ICMP on the wire:** 16-bit identifier, 16-bit sequence (= `seq mod 65536`), and a 56-byte payload — the same ICMP size as the default `ping`, so numbers are comparable with what you see today. The payload starts with a 4-byte magic, a 4-byte random session nonce, and the full 64-bit `seq`.
-- **Matching** requires: source address equals the probed destination, ICMP type is Echo Reply, and the payload magic, nonce, and `seq` match a pending probe. The identifier is checked where the OS preserves it and ignored where the kernel rewrites it (Linux datagram ICMP sockets — see [02 §5](02-architecture.md#5-platform-capability-matrix)). Matching on payload, not on the 16-bit sequence, makes **sequence wraparound** (every 18.2 hours at 1 Hz) harmless.
+- **ICMP on the wire:** 16-bit identifier, 16-bit sequence (= `seq mod 65536`), and a 56-byte payload — the same ICMP size as the default `ping`, so the numbers are comparable with `ping`'s. The payload starts with a 4-byte magic, a 4-byte random session nonce, and the full 64-bit `seq`.
+- **Matching** requires: source address equals the probed destination, ICMP type is Echo Reply, and the payload magic, nonce, and `seq` match a pending probe. The identifier is checked where the OS preserves it and ignored where the kernel rewrites it (Linux datagram ICMP sockets — see [architecture.md §5](architecture.md#5-platform-capability-matrix)). Matching on payload, not on the 16-bit sequence, makes **sequence wraparound** (every 18.2 hours at 1 Hz) harmless.
 - **Duplicates:** a second matching reply for a probe that already succeeded increments `duplicates`; the first reply's RTT stands.
 - **Out-of-order completion:** replies are matched by probe id, never by arrival order. Statistics order samples by `seq` (send order).
 - **Late replies:** a reply that arrives after the probe's deadline does not change its outcome (the deadline is part of the metric's definition, as in RFC 2681's loss threshold). The probe stays `timeout`; the observation gains `late_rtt` and `late_replies` increments. Finalised timeouts are remembered for 30 s for this purpose, then forgotten; anything later is counted as `unmatched`.
 - **Foreign packets** (other processes' echo replies on macOS, malformed packets) are counted as `unmatched` and otherwise ignored.
-- **DNS:** matching requires source address and port equal to the destination, transaction ID equal (random 16-bit per query from a CSPRNG; 0 for DoH), QR=1, and the question section echoing ours. A non-matching datagram on the query socket is counted as `unmatched` and the wait continues until the deadline.
+- **DNS:** matching requires source address and port equal to the destination, transaction ID equal (random 16-bit per query from a CSPRNG; 0 for DoH), QR=1, and the question section echoing the one sent. A non-matching datagram on the query socket is counted as `unmatched` and the wait continues until the deadline.
 
 ### 4.3 Probe outcomes
 
-Each scheduled slot ends in exactly one outcome. Only the first four are *network* outcomes.
+Each scheduled slot ends in exactly one outcome. Only the first five are *network* outcomes.
 
 | Outcome | Meaning | Sent on the wire? | In network denominators? |
 |---|---|---|---|
@@ -179,6 +177,8 @@ Transient states: `scheduled` (slot exists, nothing sent) and `pending` (sent, a
 
 Stream-level states (shown as the card status, never as a per-probe outcome): `needs_config`, `disabled`, `unsupported`, `warming_up`, `ok`, `lossy`, `no_reply`, `error` (service errors dominate), `local_error`, `stale` (no finalised observation for max(3 × interval, 5 s) while collection is supposedly running), `paused`.
 
+> **As built:** there is no `paused` stream state (§9.4), and the `stale` period is max(3 × interval, 5 s) plus the stream's deadline.
+
 ### 4.4 Windows, cohorts, and denominators
 
 - **Window membership is by send time.** An observation belongs to window `[now − w, now)` if and only if its `t_send` (or, for unsent slots, its scheduled time) falls inside. Reply arrival time is irrelevant to membership.
@@ -192,10 +192,12 @@ finalised = replied + timed_out + unreachable        (cancelled excluded)
 no_reply_rate = (timed_out + unreachable) / finalised
 ```
 
-It is labelled **"no-reply"**, not "packet loss", because it cannot distinguish a lost request, a lost reply, a rate-limited reply, or a reply that arrived after the deadline. Help text says so. Local errors, skipped slots, pending probes, cancelled probes, and observation gaps are outside both numerator and denominator.
+It is labelled **"no-reply"**, not "packet loss", because it cannot distinguish a lost echo request, a lost reply, a rate-limited reply, or a reply that arrived after the deadline. Help text says so. Local errors, skipped slots, pending probes, cancelled probes, and observation gaps are outside both numerator and denominator.
 
 - A missing RTT is **never** replaced by 0 ms or by the timeout value. Timeouts have no RTT; they appear in the outcome timeline and the no-reply rate.
-- **First attempt vs retries.** Default retry count is 0 for every protocol, so "first attempt" and "transaction" coincide. If you enable retries, every attempt is its own observation linked by `transaction_id`; the headline rates and latencies stay first-attempt, and a separate "transaction succeeded after retry" count is shown. There is no hidden failover to another address, transport, or resolver.
+- **First attempt vs retries.** The default retry count is 0 for every protocol, so "first attempt" and "transaction" coincide. With retries enabled, every attempt is its own observation and the attempts of one transaction share a transaction id; the headline rates and latencies stay first-attempt, and a separate "transaction succeeded after retry" count is shown. There is no hidden failover to another address, transport, or resolver.
+
+> **Not built:** retries. `icmp.retries` and `dns.retries` accept only `0`; a probe is sent once and its result stands.
 
 ### 4.5 Observation gaps
 
@@ -215,7 +217,7 @@ During a gap no slots are created, so no probes are "missed". Probes pending whe
 
 ## 5. Metric dictionary
 
-All windowed metrics use the window selected in the UI (1 m, **5 m default**, 15 m, 1 h, 6 h, 24 h), send-time membership, finalised observations, and the current destination epoch. "Min n" is the sample count below which the value is replaced by `—` plus the count; "low n" means shown dimmed with a `·` marker.
+All windowed metrics use the window selected in the UI (1 m, **5 m default**, 15 m, 1 h, 6 h, 24 h), send-time membership, finalised observations, and the current destination epoch. "Min n" is the sample count below which the value is replaced by `—` plus the count; "low n" means shown dimmed with a `·` marker. The same definitions, in the words the program itself prints, are in [glossary.md](../glossary.md).
 
 | # | Metric (UI label) | Formula | Unit | Timing boundaries | Eligible observations | Min n | Interpretation limits |
 |---|---|---|---|---|---|---|---|
@@ -268,14 +270,14 @@ It is described on screen as "RTT variation (mean |Δ| of consecutive probes)". 
 
 ## 6. DNS measurement
 
-DNS probes are real DNS transactions that this application builds, sends to a chosen address, and parses. The OS resolver API (`getaddrinfo`) is never timed and never presented as a provider's response time.
+DNS probes are real DNS transactions that the application builds, sends to a chosen address, and parses. The OS resolver API (`getaddrinfo`) is never timed and never presented as a provider's response time.
 
 ### 6.1 Query
 
 | Setting | Default | Notes |
 |---|---|---|
 | Query set | `. NS`, `example.com. A`, `wikipedia.org. AAAA` | Configurable. Chosen to be answerable from cache by any recursive resolver and not operated by any measured provider **[A]** |
-| Selection | round-robin by slot index: stream slot k sends query k mod 3 | Every provider sees the same query sequence. Streams are phase-staggered (see [02 §4](02-architecture.md#4-concurrency-model)), so the comparison is reproducible without synchronised bursts |
+| Selection | round-robin by slot index: stream slot k sends query k mod 3 | Every provider sees the same query sequence. Streams are phase-staggered (see [architecture.md §4](architecture.md#4-modules-and-concurrency)), so the comparison is reproducible without synchronised bursts |
 | Header | RD = 1, CD = 0, AD = 0, opcode QUERY, one question | |
 | EDNS(0) | present; UDP payload size 1232; DO = 0; no Client Subnet, no cookie, no padding (padding considered for DoT/DoH later) | |
 | ID | random 16-bit (CSPRNG) per query on UDP/TCP/DoT; 0 on DoH | |
@@ -290,11 +292,11 @@ DNS probes are real DNS transactions that this application builds, sends to a ch
 Each transaction records all four; the outcome in §4.3 is derived from them.
 
 1. **Transport** — did bytes come back before the deadline, and how long did it take?
-2. **Validity** — is it a well-formed DNS response matching our ID and question?
+2. **Validity** — is it a well-formed DNS response matching the query's ID and question?
 3. **RCODE and shape** — `NOERROR` with answers, `NOERROR` with no data, `NXDOMAIN`, `SERVFAIL`, `REFUSED`, other; plus TC flag, answer count, response size, minimum answer TTL, and any Extended DNS Error codes.
 4. **Scenario expectation** — does layer 3 match what this query was configured to expect?
 
-Each query declares an expectation: `noerror` (default: `NOERROR`, answers optional), `answer` (`NOERROR` with ≥ 1 record of the requested type), `nxdomain`, `blocked`, or `any`. Fixed answer addresses are never required, because legitimate CDN answers vary.
+Each query declares an expectation: `noerror` (default: `NOERROR`, answers optional), `answer` (`NOERROR` with ≥ 1 record of the type asked for), `nxdomain`, `blocked`, or `any`. Fixed answer addresses are never required, because legitimate CDN answers vary.
 
 ### 6.3 Classification
 
@@ -312,12 +314,12 @@ Each query declares an expectation: `noerror` (default: `NOERROR`, answers optio
 
 ### 6.4 Cache influence
 
-Repeating ordinary names measures a warm resolver cache plus the path to it. Every DNS series is labelled **cache-influenced**. Random or unique hostnames do not guarantee an uncached recursion (negative caching, aggressive NSEC, wildcard synthesis, and resolver prefetch all interfere), so the application does not claim that. A controlled cold-cache experiment needs an authoritative zone you control with unique labels and known TTLs; that is a separate optional benchmark, outside the first releases, sketched in [03 §7](03-implementation-plan.md#7-deferred-work).
+Repeating ordinary names measures a warm resolver cache plus the path to it. Every DNS series is labelled **cache-influenced**. Random or unique hostnames do not guarantee an uncached recursion (negative caching, aggressive NSEC, wildcard synthesis, and resolver prefetch all interfere), so the application does not claim that. A controlled cold-cache experiment needs an authoritative zone under the experimenter's control with unique labels and known TTLs; that is a separate optional benchmark and is deferred ([ROADMAP.md](../../ROADMAP.md)).
 
 ### 6.5 Truncation and TCP fallback
 
 - A UDP response with TC = 1 is a valid UDP exchange. The UDP attempt is recorded with its own time and `truncated = true`.
-- Fallback to TCP is on by default. The TCP attempt is a second observation with the same `transaction_id`.
+- Fallback to TCP is on by default. The TCP attempt is a second observation with the same transaction id.
 - The DNS/UDP series plots UDP attempt time only. Transactions that needed fallback are marked on the timeline and their **total** time (UDP attempt + TCP connect + TCP query) is shown in the raw view, labelled as including fallback.
 - With the default query set and a 1232-byte EDNS size, truncation should be rare; a rising count is itself worth seeing. **[A]**
 
@@ -327,21 +329,27 @@ Repeating ordinary names measures a warm resolver cache plus the path to it. Eve
 |---|---|---|---|
 | DNS/TCP | new connection per probe (2-byte length framing) | connect, then query → response; reported separately and as a total | every 60 s (off unless enabled) |
 | DoT · reused | one long-lived TLS connection per stream, reconnect on close/error | query → response on the established connection | every 5 s |
-| DoH · reused | one long-lived HTTP/2 connection per stream | request → complete response body on the established connection | every 5 s |
+| DoH · reused | one long-lived HTTP/2 connection per stream | HTTP request sent → complete response body on the established connection | every 5 s |
 | DoT/DoH · fresh | a new connection that is closed afterwards; no TLS session reuse by default | TCP connect, TLS handshake, first query — three phases and a total | every 5 min |
 
-- **Reused and fresh are different cohorts** with separate statistics. A reconnect forced by the server or an error is recorded as a `connection` event with its phase timings; the request that triggered it is tagged `after_reconnect` and excluded from the reused-connection statistics.
+- **Reused and fresh are different cohorts** with separate statistics. A reconnect forced by the server or an error is recorded as a `connection` event with its phase timings; the query that triggered it is tagged `after_reconnect` and excluded from the reused-connection statistics.
 - **Choosing the IP while keeping TLS honest.** The application dials the selected destination IP itself and passes the configured hostname as SNI and as the certificate verification name. Verification is never disabled. For IP-literal endpoints the certificate must contain that IP as a subject alternative name, or the stream reports `protocol_error (certificate)`.
 - **Recorded per connection:** bootstrap resolution (resolver used, duration, all addresses returned), selected IP, SNI, ALPN, TLS version, full/resumed, each phase duration, connection id, and the reason the previous connection ended.
-- **Phases the client cannot expose** are listed with the chosen libraries in [02 §3.4](02-architecture.md#34-what-each-layer-can-and-cannot-time).
+- **Phases the client cannot expose** are listed with the chosen libraries in [architecture.md §3.4](architecture.md#34-what-each-layer-can-and-cannot-time).
 - DoH uses POST with `application/dns-message` and DNS ID 0. HTTP status other than 200 is a `service_error` carrying the status code.
+
+> **Not built:** TLS session resumption for fresh-connection probes (a fresh probe always makes a full handshake; `fresh_handshake` accepts only `full`), and DoH by GET (`dns.doh.method` accepts only `post`).
 
 ### 6.7 NextDNS specifics, proxies, VPNs
 
-- Queries to a NextDNS profile are subject to that profile's blocklists and rewrites. The query set expectations (§6.2) are where you state what your profile should do; an unexpected block shows as `service_error (blocked)`, not as an outage.
-- **The profile ID is sensitive configuration.** It appears in the DoH path and in the DoT/DoQ server name. It is masked in the UI by default (`ab••••`), redacted in logs, and replaced by `‹redacted:nextdns-profile›` in exports and shared reports unless you pass an explicit flag. Note that with DoT the profile ID is part of the TLS server name on the wire; that is a property of the protocol, not something the application can hide.
-- **VPNs:** sockets follow the OS routing table unless you configure an interface binding, so an active VPN is used, not bypassed. The header always shows the egress interface and flags tunnel-like interfaces.
-- **HTTP proxies:** DoH probes connect directly by default, because a request through a proxy would time the proxy. If `HTTPS_PROXY`/`ALL_PROXY` is set, that is **not silent**: the header shows a persistent notice, an event is logged, and `doh.proxy = "env"` routes through the proxy with the series relabelled "via proxy". **[R]**
+- Queries to a NextDNS profile are subject to that profile's blocklists and rewrites. The query set expectations (§6.2) are where the user states what the profile should do; an unexpected block shows as `service_error (blocked)`, not as an outage.
+- **The profile ID is sensitive configuration.** It appears in the DoH path and in the DoT/DoQ server name. It is masked in the UI by default (`ab••••`), redacted in logs, and replaced by `‹redacted:nextdns-profile›` in exports and shared reports unless an explicit flag is passed. With DoT the profile ID is part of the TLS server name on the wire; that is a property of the protocol, not something the application can hide.
+- **VPNs:** sockets follow the OS routing table unless an interface binding is configured, so an active VPN is used, not bypassed. The header always shows the egress interface and flags tunnel-like interfaces.
+- **HTTP proxies:** DoH probes connect directly by default, because a query through a proxy would time the proxy. If `HTTPS_PROXY`/`ALL_PROXY` is set, that is **not silent**: the header shows a persistent notice, an event is logged, and `doh.proxy = "env"` routes through the proxy with the series relabelled "via proxy". **[R]**
+
+> **As built:** the profile id is never shown in part. The whole id is replaced by `‹redacted:nextdns-profile›` on screen, and it is removed from a recording as the recording is written by default (`redaction.profile_ids`), so it does not reach the disk. `config show --show-secrets` prints it.
+>
+> **Not built:** source and interface binding (§12.4), and DoH through a proxy (`dns.doh.proxy` accepts only `direct`). When a proxy variable is set, the session says so in its events and connects directly.
 
 ---
 
@@ -350,10 +358,12 @@ Repeating ordinary names measures a warm resolver cache plus the path to it. Eve
 Route inspection is a separate, on-demand diagnostic. It never runs by default and never feeds the latency series.
 
 - **Trigger:** `t` on a focused provider opens the Route view with the proposed budget; `Enter` starts it. One trace at a time.
-- **Budget (defaults):** ICMP probes, max TTL 30, 10 rounds, one round per second, hard cap 300 probes per trace and 30 probes per second. The view shows probes used against the cap. A trace stops at the cap, at the round limit, on `t`, or when you leave the view (configurable to keep running).
+- **Budget (defaults):** ICMP probes, max TTL 30, 10 rounds, one round per second, hard cap 300 probes per trace and 30 probes per second. The view shows probes used against the cap. A trace stops at the cap, at the round limit, on `t`, or when the view is left (configurable to keep running).
 - **Per hop:** TTL, every responding address seen at that TTL with its count, probes sent, replies, no-reply share, last/average/best/worst RTT, first-seen and last-seen timestamps.
 - **Reverse DNS** is resolved asynchronously on a separate task after a hop first appears, never on the probe path, and can be switched off (`n`). Names are untrusted text and are sanitised before display (§12.5).
-- **The trace protocol is shown in the title.** An ICMP trace does not necessarily follow the path your DNS-over-UDP or HTTPS traffic takes, and the view says so.
+- **The trace protocol is shown in the title.** An ICMP trace does not necessarily follow the path that DNS-over-UDP or HTTPS traffic takes, and the view says so.
+
+> **Not built:** UDP, TCP and Paris-style tracing — a trace is ICMP only (`trace.protocol` accepts only `icmp`). A trace always stops when its view is left (`trace.stop_on_leave` accepts only `true`). Traces are not recorded or exported, and there is no headless trace command.
 
 **How the view explains itself** (see the sketch in §9.6). Annotations are generated from the observations and state their basis:
 
@@ -383,10 +393,12 @@ Events are facts with a timestamp: probe-run changes, address changes, source-co
 | `local_error` | first local send failure on a stream | first successful send | — | Never contributes to network rates |
 
 - **Cooldown:** a rule cannot reopen on the same stream within 60 s of closing. More than 3 open/close cycles in 10 minutes collapse into one `flapping` incident that closes after 5 quiet minutes.
-- **Correlation** (milestone 3; built 2026-11-21 — see [milestone-3-status.md](milestone-3-status.md); refused sends are grouped by family across protocols): incidents opening within 10 s of each other on streams of the same protocol and family are grouped into one event that lists which streams are affected and which comparable streams are not, including the gateway and local-DNS controls when enabled. The wording is assembled from counts, never from a guessed cause.
+- **Correlation:** incidents opening within 10 s of each other on streams of the same protocol and family are grouped into one event that lists which streams are affected and which comparable streams are not, including the gateway and local-DNS controls when enabled. Refused sends (`local_error`) are grouped by family across protocols. The wording is assembled from counts, never from a guessed cause.
 - **Gaps never open incidents.** After a gap, run counters restart.
 - **Replay and demo sessions** have their own session id and their own incident state. They can never write to a live recording, and the header shows `REPLAY` or `DEMO` for the whole session.
 - External notifications are out of scope.
+
+> **As built:** the correlation window is fixed at 10 s and is not a setting. Only openings are grouped: recoveries are reported per stream.
 
 ---
 
@@ -402,9 +414,11 @@ Events are facts with a timestamp: probe-run changes, address changes, source-co
 
 ### 9.2 Layouts
 
-Three layouts with **proposed** breakpoints, to be validated on your terminals **[T]**: large at ≥ 160 × 45, standard at ≥ 120 × 35, compact at ≥ 80 × 24. Width and height are evaluated independently (a 200 × 30 terminal uses standard height rules). Below 80 × 24 the application shows a single line asking for a larger window rather than drawing clipped content.
+Three layouts: large at ≥ 160 × 45, standard at ≥ 120 × 35, compact at ≥ 80 × 24. The breakpoints are to be validated on real terminals **[T]**. Width and height are evaluated independently (a 200 × 30 terminal uses standard height rules). Below 80 × 24 the application shows a single line asking for a larger window rather than drawing clipped content.
 
-All data in the sketches is **illustrative**. Addresses in `192.0.2.0/24`, `198.51.100.0/24`, and `203.0.113.0/24` are documentation ranges standing in for your local network and for targets you have not chosen yet.
+> **As built:** one layout is chosen from both dimensions together — large needs at least 160 columns *and* 45 rows, standard at least 120 *and* 35 — so a 200 × 30 terminal gets the compact layout.
+
+The screens below are **design sketches with illustrative data**. The program's actual screens are kept as golden files in [`crates/pathwatch-tui/tests/golden/`](../../crates/pathwatch-tui/tests/golden/). Addresses in `192.0.2.0/24`, `198.51.100.0/24`, and `203.0.113.0/24` are documentation ranges standing in for a local network and for targets that have not been configured.
 
 **Standard, 120 × 35** — the reference layout.
 
@@ -540,10 +554,12 @@ All data in the sketches is **illustrative**. Addresses in `192.0.2.0/24`, `198.
 
 1. **Header.** Collection state (`COLLECTING`, `PAUSED`, `REPLAY`, `DEMO`), measurement mode, family, source context (interface, source address, gateway), interval, session duration; second line: window, `LIVE`/`FROZEN`, ICMP backend in use, background collection, recording state, UTC time, and any standing notice (proxy detected, capability degraded, collector backpressure).
 2. **Provider card.** Slot number and name in the border; status symbol + word; protocol · family; the *actual destination* (and the configured hostname if different); last RTT large with its age; p50, p95, Δ; no-reply rate with its raw fraction; n and coverage; sparkline. A card whose stream is `needs_config`, `unsupported`, or `disabled` says so in words, explains what to do, and states that nothing is being sent. It never shows 100 % loss and never substitutes another address.
-3. **Comparison chart.** *(As built, 2026-11-21: the latency axis covers the highest round trip of 95 % of the time columns, or up to twice that if the peak fits; higher values are drawn to the top row and marked `▲`, with the true maximum in the title. One slow reply therefore cannot flatten the chart, and a change lasting more than a twentieth of the window still sets the scale.)* Four labelled series on a common time axis and a common latency axis with visible units; legend in the title; focused series drawn brighter and last.
+3. **Comparison chart.** Four labelled series on a common time axis and a common latency axis with visible units; legend in the title; focused series drawn brighter and last.
 4. **Outcome timeline.** One row per provider on the chart's exact x-axis. This is where timeouts, errors, and gaps live, so a missing latency sample is always accounted for directly under the hole it left in the chart.
 5. **Events.** Newest first; time, symbol, stream, sentence.
 6. **Footer.** Focused provider, window, `LIVE`/`FROZEN`, key hints sized to the width.
+
+> **As built:** a session stopped with `P` shows `STOPPED` in the header, not `PAUSED` (§9.4). The chart's latency axis covers the highest round trip of 95 % of the time columns, or up to twice that if the peak fits; higher values are drawn to the top row and marked `▲`, with the true maximum in the title. One slow reply therefore cannot flatten the chart, and a change lasting more than a twentieth of the window still sets the scale.
 
 ### 9.4 Status vocabulary
 
@@ -559,6 +575,8 @@ All data in the sketches is **illustrative**. Addresses in `192.0.2.0/24`, `198.
 | `?` | `NEEDS CONFIG` | no usable target configured | `?` |
 | `⊘` | `UNSUPPORTED` | this protocol is not offered by this target or not available on this host | `/` |
 | `–` | `DISABLED` | switched off in configuration | `-` |
+
+> **Not built:** the `PAUSED` card status. A session stopped by the user shows `STOPPED` in the header and footer, and its cards go `STALE`.
 
 ### 9.5 Colour
 
@@ -581,6 +599,8 @@ Identity colours are taken from the Okabe–Ito colour-blind-safe palette so the
 - **Monochrome and ASCII charts** cannot separate four overlaid lines by colour. In those modes the comparison chart switches to four stacked small charts sharing one y-scale, with the focused provider's taller. **[R]**
 - **Alternative palettes:** `high-contrast` (bold primaries on black) and `mono`. Per-provider colour overrides in the configuration.
 
+> **Not built:** the stacked small charts — the four series stay overlaid in one chart, and in the ASCII monochrome rendering each is plotted with its slot digit. Per-provider colour overrides have no effect (`providers.<key>.color` is accepted and ignored): a card's colour goes by its slot.
+
 ### 9.6 Detail views
 
 `Enter` on a provider opens its detail view with tabs (`h`/`l` to switch):
@@ -596,6 +616,12 @@ Identity colours are taken from the Okabe–Ito colour-blind-safe palette so the
 | Settings | Effective settings for this provider, capability results, backend names and versions, destination epochs |
 
 A global **Settings/Capabilities** screen (`C`) shows the effective configuration with its sources, the platform capability probe results, and collector health (scheduling lag, loop lag, queue depth, drops).
+
+> **As built:** the detail view has five tabs — Streams (the Summary tab above), Distribution, DNS, Raw, Events. Route is a screen of its own, opened with `t`, not a tab.
+>
+> **Not built:** the Settings tab and the global Settings/Capabilities screen. `pathwatch config show --effective` prints the effective configuration with its sources, `pathwatch doctor` the capability results, and the summary of `pathwatch sample` the collector's health counters. The Raw tab has no filter and no every-field view of one observation.
+
+Design sketches of the DNS tab and the Route view, with illustrative data:
 
 ```text
 ╭─ 2 Google · details ──────────────────────────────────── Summary  Distribution  [DNS]  Raw  Route  Events  Settings ─╮
@@ -650,6 +676,10 @@ A global **Settings/Capabilities** screen (`C`) shows the effective configuratio
 | Coverage is visible | Each card shows coverage; the timeline shows where the missing coverage is |
 | Epoch changes | A destination change draws a vertical marker on that series and a `◆` in its timeline row |
 
+> **As built:** the timeline has cells for replied, some unanswered, none answered, error response, local error, skipped, and gap. Timeouts and unreachables share the "unanswered" cells; pending probes have no cell, and an unsupported or unconfigured row says so in words.
+>
+> **Not built:** the scale cycle (`z`), with its fit, log and independent scales — the common scale of §9.3 is the only one. The epoch marker and the `◆` timeline cell (§2).
+
 ### 9.8 Motion
 
 | Trigger | Effect | Duration |
@@ -661,6 +691,8 @@ A global **Settings/Capabilities** screen (`C`) shows the effective configuratio
 | New column enters the chart | the plot scrolls by one cell | one frame |
 
 No spinners, no idle animation, no flashing. With `--reduced-motion` (or `reduced_motion = true`) every effect above is replaced by its end state, and the frame rate drops to on-change rendering capped at 4 fps.
+
+> **Not built:** every effect in the table. There is no animation: the screen is redrawn when its data changes, at most ten times a second. `--reduced-motion` limits redraws for new data to four a second; keys are still answered at once.
 
 ---
 
@@ -695,29 +727,35 @@ The same key means the same thing on every screen. Keys that would be destructiv
 | `t` | route view for the focused provider; `Enter` there starts a trace, `t` stops it | everywhere |
 | `C` | settings and capabilities | everywhere |
 | `P` | **stop / resume collection** (asks for confirmation; creates a history gap) | everywhere |
-| `R` | reload configuration (from milestone 3; before that, restart) | everywhere |
+| `R` | reload configuration | everywhere |
 | `Ctrl-L` | full redraw | everywhere |
 | `Ctrl-Z` | suspend to the shell (terminal restored; collection gap on resume) | everywhere |
 
 Bindings are configurable; the help overlay and footer are generated from the active map, so they cannot drift.
+
+> **Not built:** these keys are not bound — `x` / `X` (hide, solo), `z` (scale cycle), `/` (filter), `e` (events screen; events are a tab of the detail view), `r`, `C`, `g` / `d` (control focus), `Ctrl-d` / `Ctrl-u`. Key bindings are not configurable: `[ui.keys]` is accepted and has no effect.
+>
+> **As built:** top of a list is a single `g`, not `gg`; `PageUp` / `PageDown` scroll ten rows. `Tab` / `Shift-Tab` act as `l` / `h` — there is no separate panel focus. The modes cycle ICMP → DNS/UDP → DoH → DoT. A second `?` turns the help overlay into the glossary.
 
 ### 10.2 Freeze is not stop
 
 - **Freeze** (`Space`) pins the displayed window to the moment of freezing. The header and footer show `FROZEN 00:37 · collection continues` in the warning style, with the count of new observations since. Unfreezing jumps back to live. Nothing is lost.
 - **Stop collection** (`P`) is a separate, confirmed action. Probes stop, the header shows `PAUSED`, and the interval is recorded as a `gap(stopped)`.
 
+> **As built:** the header shows `STOPPED`, and the cards go `STALE` (§9.4).
+
 ### 10.3 Inspection
 
-- **Selected sample:** in cursor mode, `Enter` opens the list of probes in the column under the crosshair, and `Enter` again shows one observation with every field of the schema ([02 §6](02-architecture.md#6-observation-schema)).
+- **Selected sample:** in cursor mode, `Enter` opens the list of probes in the column under the crosshair, and `Enter` again shows one observation with every field of the observation schema ([architecture.md §6](architecture.md#6-observation-schema)).
 - **Timeline cells** are inspectable the same way.
 - **Raw values** are always one step from any aggregate: every statistic's detail row shows its n and the window bounds.
 - **Mouse** is optional and **off by default**, because capturing the mouse disables the terminal's native text selection. With `--mouse`: click a card or legend entry to focus/toggle, wheel to scroll lists or change the window over the chart, click the chart to place the cursor. Every mouse action has a keyboard equivalent.
 
+> **Not built:** inspection of a selected sample or a timeline cell. The cursor shows the values of its column in the footer; single observations are listed in the Raw tab.
+
 ---
 
 ## 11. CLI contract
-
-`pathwatch` is a placeholder name.
 
 ```text
 pathwatch                         interactive dashboard (same as `pathwatch run`)
@@ -735,17 +773,26 @@ pathwatch --version               version, build features, and measurement backe
 ```
 
 Common options: `--config <path>`, `--mode icmp|dns|doh|dot`, `--family 4|6`, `--window <dur>`, `--color auto|always|never`, `--ascii`, `--reduced-motion`, `--mouse`, `--record <path>`, `--log-file <path>`, `--log-level`.
-`sample` options: `--duration <dur>` or `--count <n>`, `--format jsonl|summary`, `--output <path>`, and (later) `--assert '<expr>'`.
+`sample` options: `--duration <dur>` or `--count <n>`, `--format jsonl|summary`, `--output <path>`, and `--assert '<expr>'`.
+
+> **As built:**
+> - `run` has no `--mode`, `--family` or `--window`, and `general.default_mode`, `default_family` and `default_window` have no effect: the dashboard opens on ICMP, IPv4 and five minutes. `sample` does take `--mode`, `--family` and `--window`.
+> - `--record` takes a directory; a session is written as JSONL segments under it.
+> - `replay --speed` takes a number, a multiple of real time (there is no `max`); without it the whole session is shown at once.
+> - `export` has `--redact-local` (also remove the host's own addresses, interface names, gateway and resolver) and `--no-redact` (leave the records as recorded) in place of `--redact`.
+> - Added beyond the design: `pathwatch glossary`, `pathwatch man`, `pathwatch config reference`, `sample --format plain`, and `--theme`. `sample --assert` is built.
+>
+> **Not built:** `--log-file` and `--log-level`, and any log file: `[logging]` is accepted and has no effect. What a session has to say is in its events and, with `--record`, in its recording.
 
 | Topic | Behaviour |
 |---|---|
 | TTY detection | `run`, `replay`, `demo` require a terminal on stdout and stdin. Without one they exit with code 2 and a one-line message suggesting `sample`. They never write escape sequences into a pipe |
-| stdout / stderr | stdout carries only the requested data (JSONL, CSV, summary, config). Diagnostics and logs go to stderr or the log file. In interactive mode logs go to the log file only, never onto the screen |
+| stdout / stderr | stdout carries only the data asked for (JSONL, CSV, summary, config). Diagnostics and logs go to stderr or the log file. In interactive mode logs go to the log file only, never onto the screen |
 | Plain text | `sample --format summary` prints a fixed-width table per stream with the §5 metrics; colour only if stdout is a TTY and colour is enabled |
 | Piping | `sample` flushes one JSON object per line; safe for `jq`, `tee`, `head` |
 | Broken pipe | `EPIPE` on stdout ends collection quietly: flush nothing further, exit 0 |
 | `SIGINT` | interactive: clean quit, exit 0. `sample`: finalise pending probes as `cancelled`, print the summary if requested, exit 130 |
-| `SIGTERM`, `SIGHUP` (terminal closed) | orderly shutdown: stop probes, flush recorder, restore terminal; exit 143 / 129. `SIGHUP` with a controlling terminal still present reloads configuration once reload exists |
+| `SIGTERM`, `SIGHUP` (terminal closed) | orderly shutdown: stop probes, flush recorder, restore terminal; exit 143 / 129. `SIGHUP` with a controlling terminal still present reloads configuration |
 | `SIGTSTP` / `SIGCONT` | restore the terminal before stopping; on continue, re-enter the alternate screen, redraw, record a `gap(process_stopped)` |
 | `SIGWINCH` | re-layout on the next frame; resize events are coalesced; layout class changes preserve focus and window |
 | Panic / fatal error | terminal is restored first (raw mode off, alternate screen left, cursor shown, mouse capture off), then the error is printed to stderr |
@@ -761,8 +808,10 @@ Common options: `--config <path>`, `--mode icmp|dns|doh|dot`, `--family 4|6`, `-
 | 3 | configuration invalid |
 | 4 | no stream could be started (every configured probe is unsupported or denied on this host) |
 | 5 | I/O error on a requested output (recording, export) |
-| 10 | `sample --assert` condition was false — the opt-in way to turn network state into an exit status (later milestone) |
+| 10 | a `sample --assert` condition was false — the opt-in way to turn network state into an exit status |
 | 129 / 130 / 143 | ended by `SIGHUP` / `SIGINT` / `SIGTERM` in headless mode |
+
+> **As built:** exit status 129 is never produced. In `sample` a hang-up reloads the configuration; in the dashboard it reloads while the terminal is still there and shuts down in order once it is gone. A panic exits with status 101, after the terminal has been restored.
 
 ---
 
@@ -770,13 +819,15 @@ Common options: `--config <path>`, `--mode icmp|dns|doh|dot`, `--family 4|6`, `-
 
 ### 12.1 Format and location
 
-**TOML.** **[R]** It is comment-friendly, has unambiguous types for durations-as-strings and arrays of tables, is the native format of the recommended ecosystem, and is diff-friendly for a file you will hand-edit. YAML's implicit typing and JSON's lack of comments both make worse hand-edited config.
+**TOML.** **[R]** It is comment-friendly, has unambiguous types for durations-as-strings and arrays of tables, is the native format of the Rust ecosystem, and is diff-friendly for a file that is edited by hand. YAML's implicit typing and JSON's lack of comments both make worse hand-edited config.
 
 Path: `$XDG_CONFIG_HOME/pathwatch/config.toml`, defaulting to `~/.config/pathwatch/config.toml` on both macOS and Linux. `--config` and `PATHWATCH_CONFIG` override.
 
-A complete, syntactically valid illustrative file is in [examples/pathwatch.example.toml](examples/pathwatch.example.toml). It ships with NextDNS and Arelion **disabled with explicit placeholders**; the application starts with those two cards in `NEEDS CONFIG`.
+A complete, commented example file is [pathwatch.example.toml](../../crates/pathwatch-core/src/pathwatch.example.toml); `pathwatch config example` prints it. It ships with NextDNS and Arelion **disabled with explicit placeholders**; the application starts with those two cards in `NEEDS CONFIG`.
 
-It covers: providers and targets, per-protocol settings, family selection, source binding, intervals and deadlines, history, incident thresholds, theme and glyph mode, key bindings, recording, redaction, and logging.
+It covers: providers and targets, per-protocol settings, family selection, source binding, intervals and deadlines, history, incident thresholds, theme and glyph mode, key bindings, recording, redaction, and logging. Every setting, its default, and whether a reload applies it is in [configuration.md](../configuration.md).
+
+> **As built:** some settings are accepted and change nothing — among them source binding, key bindings and logging. Each is marked in [configuration.md](../configuration.md), and setting one to something other than its default prints a warning.
 
 ### 12.2 Precedence and validation
 
@@ -792,8 +843,9 @@ It covers: providers and targets, per-protocol settings, family selection, sourc
 
 ### 12.3 Changing configuration
 
-- **Milestones 1–2:** changes require a restart. This is stated in the `NEEDS CONFIG` card.
-- **From milestone 3:** `R` or `SIGHUP` reloads. The new file is parsed and validated in full before anything changes. On failure the running configuration is kept untouched and an event shows the error. On success the config **revision** increments, a `config_reloaded` event is recorded, unchanged streams keep their history, and changed streams are cancelled and restarted as new streams. Every observation carries the revision it was taken under.
+`R` in the dashboard, or `SIGHUP`, reloads. The new file is parsed and validated in full before anything changes. On failure the running configuration is kept untouched and an event shows the error. On success the config **revision** increments, a `config_reloaded` event is recorded, unchanged streams keep their history, and changed streams are cancelled and restarted as new streams. Every observation carries the revision it was taken under.
+
+> **As built:** not every setting can be applied to a running session; [configuration.md](../configuration.md) says which. A reload that contains any change needing a restart is refused whole, and nothing is changed.
 
 ### 12.4 Degraded operation
 
@@ -802,19 +854,23 @@ It covers: providers and targets, per-protocol settings, family selection, sourc
 | Unprivileged ICMP not permitted on this host | ICMP streams show `UNSUPPORTED` with the exact remedy the OS documents (displayed, never executed); DNS streams run normally; exit code is 0 unless *nothing* can run |
 | IPv6 has no route or address | v6 streams show `LOCAL ERR (no IPv6 route)`; not counted as loss; re-checked on network change |
 | Interface or default route changes, VPN up/down | pending probes cancelled, short gap, new source context event, long-lived DoT/DoH connections re-established and marked `after_reconnect` |
-| Bootstrap resolution fails | the stream shows `LOCAL ERR (bootstrap)` with the resolver error; last known address is **not** silently reused past its refresh deadline unless `on_bootstrap_failure = "keep"` |
+| Bootstrap resolution fails | the stream shows `LOCAL ERR (bootstrap)` with the resolver error; last known address is **not** silently reused past its refresh deadline unless `bootstrap.on_failure = "keep"` |
 | Permission denied on a socket option (interface binding) | that stream is `UNSUPPORTED (binding)`; the application does not fall back to an unbound socket, because that would measure a different path |
 | Invalid configuration at start | exit 3 with every problem listed, not just the first |
 | Wall-clock step | `clock_step` event; durations unaffected |
 | Target flapping | `flapping` incident (§8) |
 | Terminal disconnect | orderly shutdown (§11) |
-| Disk full or write error while recording | recording stops, an event and a header notice appear, measurement continues; see [02 §7](02-architecture.md#7-persistence-recording-and-replay) |
+| Disk full or write error while recording | recording stops, an event and a header notice appear, measurement continues; see [architecture.md §7](architecture.md#7-persistence-recording-and-replay) |
 
-The application never changes sysctls, file capabilities, setuid bits, firewall rules, DNS settings, or routes. It does not need to run as root and warns if it is.
+The application never changes sysctls, file capabilities, setuid bits, firewall rules, DNS settings, or routes. It does not need to run as root, and `doctor` warns if it is.
+
+> **Not built:** source and interface binding. The configuration rejects any `[source]` value other than empty, so every socket follows the operating system's routing. Raw-socket ICMP is not built either: ICMP uses the unprivileged datagram socket only (`icmp.backend = "raw"` is refused), so running as root does not make ICMP available where the host has it switched off.
 
 ### 12.5 Untrusted text
 
 Reverse-DNS names, hostnames from configuration, TXT/CNAME data, TLS certificate names, HTTP headers, and any subprocess output are untrusted. Before display or logging they are length-limited and stripped of C0/C1 control characters, escape sequences, and bidirectional override characters; non-printable bytes are shown as `\xNN`. Parsers have explicit size limits (DNS message ≤ 65,535 bytes, HTTP response body ≤ 64 KiB, hop name ≤ 255 bytes). Logs are written to a file, never to the rendered screen, and pass through the same redaction as exports.
+
+> **As built:** there is no log file (§11). Text read back from a recording is treated as untrusted as well and cleaned the same way, so a recording from someone else can be replayed and exported safely. Recordings are created readable by their owner only, and retention (`recording.max_total`) deletes only the program's own segments.
 
 ---
 
@@ -832,7 +888,9 @@ Reverse-DNS names, hostnames from configuration, TXT/CNAME data, TLS certificate
 | Render rate | up to 15 fps while something is animating; on-change (≤ 4 fps) when idle, over SSH (`SSH_CONNECTION` set), or with reduced motion | Collection cadence is independent of this |
 | Tracing | off until requested | §7 |
 | Window | 5 min | |
-| History | compact samples 24 h per stream; full observation records 1 h per stream | [02 §4.4](02-architecture.md#44-history-and-memory-bounds) |
+| History | compact samples 24 h per stream; full observation records 1 h per stream | [architecture.md §4.4](architecture.md#44-history-and-memory-bounds) |
+
+> **As built:** the screen is redrawn when its data changes, at a fixed ten times a second at most, with no slower rate over SSH; with reduced motion, four times a second for new data. `ui.max_fps` and `ui.idle_fps` have no effect.
 
 **Aggregate traffic with everything enabled** — four providers, both families, both controls, no retries. Computed from packet sizes; byte counts are IP-layer and exclude link framing. DoT/DoH figures are estimates to confirm **[T]**.
 
@@ -849,3 +907,5 @@ Reverse-DNS names, hostnames from configuration, TXT/CNAME data, TLS certificate
 Per destination this is one echo request per second per family — 86,400 per day — the same as leaving `ping` running.
 
 **Global limits** (enforced by the scheduler, visible in the Capabilities screen): 25 probe transactions per second sustained with a burst of 40; at most 128 probes in flight; at most 16 concurrent DNS transactions; one trace. A configuration whose computed steady-state rate exceeds the sustained limit fails validation; at run time a slot that would exceed the limit becomes `skipped(rate_limit)` and is counted as a collector condition, never as network loss.
+
+> **As built:** DNS transactions are not limited separately (`limits.max_concurrent_dns` has no effect), and with no Capabilities screen (§9.6) the limits are shown by `pathwatch config show --effective`.

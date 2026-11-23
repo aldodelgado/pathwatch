@@ -1,6 +1,6 @@
 [package]
 name = "pathwatch-core"
-description = "Measurement core for pathwatch (placeholder name): probes, scheduling, statistics. No terminal dependencies."
+description = "Measurement core for pathwatch: probes, scheduling, statistics. No terminal dependencies."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

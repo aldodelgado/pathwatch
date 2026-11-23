@@ -1,4 +1,4 @@
-//! Terminal dashboard for `pathwatch` (placeholder name).
+//! Terminal dashboard for `pathwatch`.
 //!
 //! This crate draws [`pathwatch_core::snapshot::Snapshot`]s and turns key
 //! presses into a [`pathwatch_core::snapshot::ViewSpec`]. It cannot reach the

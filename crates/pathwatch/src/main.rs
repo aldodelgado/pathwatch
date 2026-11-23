@@ -1,4 +1,4 @@
-//! `pathwatch` (placeholder name) — command-line entry point.
+//! `pathwatch` — command-line entry point.
 //!
 //! Headless commands: `sample`, `doctor`, `config`. Interactive: `run` (live)
 //! and `demo` (synthetic scenarios, no network activity).
@@ -52,7 +52,7 @@ const EXIT_SIGTERM: u8 = 143;
 
 const LONG_VERSION: &str = concat!(
     env!("CARGO_PKG_VERSION"),
-    " (placeholder name)\n",
+    "\n",
     "backends: icmp-dgram (unprivileged datagram socket), dns-udp with TCP fallback, dns-tcp, dot and doh-h2 (hyper + rustls, OS trust store)\n",
     "timestamps: ICMP round trips end at the kernel receive stamp (kernel-rx); DNS, DoT and DoH at this process's read (userspace-monotonic)\n",
     "not in this build: source binding, raw-socket ICMP, retries, DoH by GET or through a proxy, UDP or TCP route tracing"
@@ -74,7 +74,7 @@ fn print_text(text: &str) -> ExitCode {
 }
 
 #[derive(Parser)]
-#[command(name = "pathwatch", version, long_version = LONG_VERSION, about = "Continuously measures four DNS/network providers. `pathwatch` is a placeholder name.")]
+#[command(name = "pathwatch", version, long_version = LONG_VERSION, about = "Continuously measures four DNS/network providers.")]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
@@ -206,7 +206,7 @@ struct ExportArgs {
     /// Write here instead of standard output
     #[arg(long)]
     output: Option<PathBuf>,
-    /// Also remove this host's own addresses and interface names
+    /// Also remove this host's own addresses, its interface names, and its gateway and resolver
     #[arg(long)]
     redact_local: bool,
     /// Leave the records exactly as recorded. Profile ids are removed by default
@@ -1129,6 +1129,14 @@ fn export(args: ExportArgs) -> ExitCode {
                     }
                 }
                 Record::Session(s) => local_addresses.extend(s.streams.iter().filter(|st| is_control(&st.provider)).map(|st| st.configured.to_string())),
+                // The source context is this host's network in words: its
+                // address, the interface's name, the gateway — whether or
+                // not a control was probing that gateway. Which context it
+                // was stays; what it said goes.
+                Record::Event(e) if e.event == "source_context" || e.event == "source_context_changed" => {
+                    let which = e.detail.split(':').next().filter(|p| p.starts_with("source context ")).unwrap_or("source context");
+                    e.detail = format!("{which}: ‹redacted:local›");
+                }
                 _ => {}
             }
         }

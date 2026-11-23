@@ -3,7 +3,7 @@
 //! These are real DNS exchanges this application builds, sends to a chosen
 //! address, and parses. The OS resolver is never timed. `hickory-proto` is
 //! used only to encode and decode messages; every socket and every timestamp
-//! is ours. See `planning/01-design-spec.md` §6.
+//! is ours. See `docs/design/design.md` §6.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::atomic::Ordering;

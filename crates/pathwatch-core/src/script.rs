@@ -403,7 +403,7 @@ fn scenario(name: &'static str, shows: &'static str, streams: Vec<ScriptStream>)
     Scenario { name, shows, duration: Duration::from_secs(180), streams, gaps: Vec::new() }
 }
 
-/// Every scripted scenario, as listed in `planning/03-implementation-plan.md` §4.3.
+/// Every scripted scenario, as listed in `docs/design/verification.md` §4.3.
 pub fn all() -> Vec<Scenario> {
     let mut out = Vec::new();
 
