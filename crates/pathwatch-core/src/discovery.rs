@@ -2,7 +2,7 @@
 //!
 //! Resolution always happens off the timing path, in its own task. A stream
 //! reads the latest result without waiting. Policy (see
-//! `planning/01-design-spec.md` §3.4): take the first address of the stream's
+//! `docs/design/design.md` §3.4): take the first address of the stream's
 //! family and stay on it while it remains in the answer set; when it leaves,
 //! either follow (new destination epoch, recorded) or stay pinned and say so.
 

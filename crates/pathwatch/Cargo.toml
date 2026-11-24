@@ -1,6 +1,6 @@
 [package]
 name = "pathwatch"
-description = "Four-provider network monitor (placeholder name)."
+description = "A terminal instrument that continuously measures up to four DNS and network providers."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

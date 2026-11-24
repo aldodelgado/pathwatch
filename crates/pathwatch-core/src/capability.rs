@@ -1,5 +1,5 @@
 //! Host capability detection. Opens sockets and reads system state; sends
-//! nothing and changes nothing. See `planning/02-architecture.md` §5.
+//! nothing and changes nothing. See `docs/design/architecture.md` §5.
 
 use std::io;
 

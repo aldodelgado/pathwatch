@@ -1,5 +1,5 @@
 //! Traffic accounting: what the collector actually put on the wire, and what
-//! the configuration says it should. See `planning/01-design-spec.md` §13.
+//! the configuration says it should. See `docs/design/design.md` §13.
 //!
 //! ICMP and UDP are counted as IP-layer bytes (payload plus transport and IP
 //! headers, no link framing), which is exact. TCP-based transports are counted

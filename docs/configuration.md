@@ -205,11 +205,11 @@ When a stream's status changes. Every rule opens on one condition and closes on 
 | `recording.directory` | `"~/.local/state/pathwatch/recordings"` | Where recordings go, one directory per session. | no |
 | `recording.rotate_size` | `"64MiB"` | Start a new segment file at this size. | no |
 | `recording.rotate_age` | `"24h"` | Or at this age. | no |
-| `recording.max_total` | `"1GiB"` | The most disk all recordings may use; the oldest segments are deleted first. | no |
+| `recording.max_total` | `"1GiB"` | The most disk all recordings may use; the oldest segments are deleted first. Only this program's own segments are counted or deleted. | no |
 | `recording.min_free_disk` | `"200MiB"` | Below this much free space recording stops and measurement continues. | no |
 | `recording.fsync` | `"rotate"` | `rotate` syncs a segment to disk when it is closed; `never` leaves it to the system. Lines are flushed after every batch either way. | no |
 | `redaction.profile_ids` | `true` | Remove profile ids from a recording as it is written, so they never reach the disk. | no |
-| `redaction.local_addresses` | `false` | Only `false`. `pathwatch export --redact-local` removes your own addresses from an export. | no |
+| `redaction.local_addresses` | `false` | Only `false`. `pathwatch export --redact-local` removes your own addresses, interface names and gateway from an export. | no |
 | `redaction.hostnames` | `false` | Only `false`. | no |
 
 ## `[logging]`

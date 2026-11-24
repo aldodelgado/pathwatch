@@ -1,5 +1,5 @@
 //! Configuration: parsing, layering, validation, and derivation of the stream
-//! plan. See `planning/01-design-spec.md` §12.
+//! plan. See `docs/design/design.md` §12.
 //!
 //! Layers, lowest to highest: the built-in configuration (the example file
 //! compiled into the binary), the user's file, then explicit overrides from
@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::model::{Family, Protocol};
 
 /// The built-in configuration and the text printed by `config example`.
-pub const EXAMPLE_CONFIG: &str = include_str!("../../../planning/examples/pathwatch.example.toml");
+pub const EXAMPLE_CONFIG: &str = include_str!("pathwatch.example.toml");
 
 pub const REDACTED: &str = "‹redacted:nextdns-profile›";
 
@@ -744,7 +744,7 @@ pub fn validate(c: &Config) -> Vec<Problem> {
     }
     for (key, value) in [("source.interface", &c.source.interface), ("source.address_v4", &c.source.address_v4), ("source.address_v6", &c.source.address_v6)] {
         if !value.is_empty() {
-            bad(key, "source binding is not implemented in this build (planned for milestone 3); leave it empty".into());
+            bad(key, "source binding is not implemented in this build; leave it empty".into());
         }
     }
 

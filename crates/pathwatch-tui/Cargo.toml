@@ -1,6 +1,6 @@
 [package]
 name = "pathwatch-tui"
-description = "Terminal dashboard for pathwatch (placeholder name). Draws snapshots; performs no network work."
+description = "Terminal dashboard for pathwatch. Draws snapshots; performs no network work."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

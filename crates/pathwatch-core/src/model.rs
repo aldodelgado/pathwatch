@@ -1,7 +1,7 @@
 //! Identity and record types.
 //!
 //! The serialised field names in this module are the JSONL schema, version
-//! [`SCHEMA_VERSION`]. See `planning/02-architecture.md` §6.
+//! [`SCHEMA_VERSION`]. See `docs/design/architecture.md` §6.
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -73,7 +73,7 @@ impl Family {
 }
 
 /// How one scheduled slot ended. Only the first five are network outcomes;
-/// see `planning/01-design-spec.md` §4.3.
+/// see `docs/design/design.md` §4.3.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {

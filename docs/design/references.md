@@ -1,23 +1,21 @@
-# 04 · References, assumptions, and open questions
+# pathwatch — references and assumptions
 
-**Status:** draft for review · 2026-11-21 · updated the same day with your answers to Q1–Q4.
+These are the primary sources behind [design.md](design.md) and [architecture.md](architecture.md). Each row names the claims it supports in those documents. The "Supports" column paraphrases the source; addresses, versions, dates, and licences are given as the source stated them.
+
+The sources were read when the design was written. Providers and projects change their documentation, so re-check a claim against its source before relying on it.
+
+Section 1.3 lists sources for the Go and Python stacks that were compared with Rust; the comparison itself is in [architecture.md](architecture.md).
 
 ---
 
 ## 1. Sources
-
-All sources were accessed on **2026-11-21**. Each row names the claims it supports in this package.
-
-**How they were read.** Research was done by reading documentation, package registries, and source code only. Many pages were read through a fetch tool that summarises long pages, so prose in this package is paraphrased; where exact wording mattered (Tokio tick semantics, Rust `Instant` clocks, Ratatui chart rendering, kernel and XNU behaviour, the Arelion document, the Trippy privileges guide) the raw source or file was read directly. Addresses, versions, dates, and licences are exact.
-
-**What was not done.** No ping, trace, DNS query, or load test was run against any provider or on your network, nothing was installed, and no system setting was changed. One exception to disclose: while researching NextDNS, a research agent made a single HTTPS request to the public diagnostic page `https://test.nextdns.io`; it returned an empty body and was not repeated. No conclusion in this package depends on it.
 
 ### 1.1 Rust UI and runtime
 
 | Source | Supports |
 |---|---|
 | https://ratatui.rs/ · https://ratatui.rs/concepts/backends/ | Ratatui 0.30.2; Crossterm 0.29 default and 0.28 by feature flag; warning against two Crossterm majors; use the re-export |
-| https://crates.io/api/v1/crates/ratatui (and the same path for every crate named in [02 §3.1](02-architecture.md#31-candidate-dependency-set)) | versions, release dates, licences, minimum Rust versions, feature names |
+| https://crates.io/api/v1/crates/ratatui (and the same path for every crate named in the [candidate dependency set](architecture.md#31-dependency-set)) | versions, release dates, licences, minimum Rust versions, feature names |
 | https://raw.githubusercontent.com/ratatui/ratatui/main/BREAKING-CHANGES.md · `ARCHITECTURE.md` · `MAINTAINERS.md` | workspace split since 0.30; queued 0.31 breaking changes; four maintainers; no 1.0 plan found |
 | https://docs.rs/ratatui/latest/ratatui/widgets/index.html and widget pages; `ratatui-widgets/src/chart.rs` at tag `ratatui-v0.30.2` | widget list; no histogram or heatmap; `Chart` joins every consecutive point (no gaps); axis-label limitation; `Sparkline` absent values; marker types |
 | https://docs.rs/ratatui/latest/ratatui/fn.init.html · `ratatui/src/init.rs` at the tag | `init`/`restore`/`run`; panic hook; no mouse capture, paste, or focus handling in `init` |
@@ -82,7 +80,7 @@ All sources were accessed on **2026-11-21**. Each row names the claims it suppor
 | https://help.nextdns.io/t/x2hmvas/ · https://help.nextdns.io/t/m1hmv0k/which-setup-type-to-use · https://help.nextdns.io/t/x2h76ay/device-information-log-enrichment · https://help.nextdns.io/t/g9hmvan/what-is-linked-ip | supported transports; DoH and DoT endpoint shapes; profile id in the server name; linked IP for plain IPv4 |
 | https://github.com/nextdns/nextdns (`run.go`, wiki Configuration) · https://github.com/nextdns/diag (`main.go`) | fixed anycast addresses `45.90.28.0`, `45.90.30.0`, `2a07:a8c0::`, `2a07:a8c1::`; what NextDNS's own diagnostic tool measures |
 | https://nextdns.github.io/api/ · NextDNS help forum staff replies | block-page setting; blocked answers may be the unspecified address |
-| Arelion, *Important Information Regarding Your IP Address Assignment*, V 4.1, 2023-02-23 (URL given in the request) | five resolver address pairs described as Arelion's public DNS resolvers; no transport, access policy, or encrypted DNS stated |
+| Arelion, *Important Information Regarding Your IP Address Assignment*, V 4.1, 2023-02-23 (URL not recorded here) | five resolver address pairs described as Arelion's public DNS resolvers; no transport, access policy, or encrypted DNS stated |
 | https://www.peeringdb.com/asn/1299 · https://lg.twelve99.net/ (landing page only) · https://www.arelion.com/our-network · Arelion IP Services SLA v3.0.1 | AS1299 identity; looking glass exists; no published customer measurement target; no documentation of router hostname conventions |
 
 ### 1.5 Operating systems
@@ -121,65 +119,38 @@ All sources were accessed on **2026-11-21**. Each row names the claims it suppor
 | https://github.com/contour-terminal/vt-extensions (synchronized output) | mode 2026 |
 | https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap02.html · https://www.gnu.org/software/bash/manual/html_node/Exit-Status.html · `signal.7` · `write.2` | exit status above 128 for signals; `EPIPE` behaviour |
 
-### 1.8 Looked for and not confirmed
+---
+
+## 2. What could not be confirmed
+
+These items were looked for and could not be confirmed from a primary source.
 
 | Item | Status |
 |---|---|
-| `https://1.1.1.1/dns-query` and `1dot1dot1dot1.cloudflare-dns.com` | not in Cloudflare's current documentation as read; not used as defaults |
+| `https://1.1.1.1/dns-query` and `1dot1dot1dot1.cloudflare-dns.com` | not in Cloudflare's documentation when the design was written; not used as defaults |
 | NextDNS DoQ port, exact per-profile addresses, `test.nextdns.io` response fields, behaviour of the anycast IPs without a profile | not officially documented or behind login |
 | Whether Arelion's 2023 resolver list is current, and whether those resolvers answer non-customers | unknown |
 | `*.twelve99.net` hostname convention | no Arelion source found |
 | Default `ping_group_range` on Debian 12 and current Ubuntu LTS | not confirmed from a package manifest |
-| Crossterm's exact output under `NO_COLOR` (possible reset of bold/reverse) | source reading only — test in milestone 2 |
+| Crossterm's exact output under `NO_COLOR` (possible reset of bold/reverse) | source reading only — to be confirmed by a test |
 | Kernel receive timestamps on macOS ICMPv6 datagram sockets; routing semantics of `IP_BOUND_IF` | source-inferred only |
-| NANOG 47 original of the traceroute tutorial | paywalled; the NANOG 80 edition was read instead |
+| NANOG 47 original of the traceroute tutorial | paywalled; the NANOG 80 edition was used instead |
 
 ---
 
-## 2. Assumptions
+## 3. Assumptions
+
+Identifiers are stable so that other documents can cite them. A10 is not used.
 
 | # | Assumption | If wrong |
 |---|---|---|
-| A1 | Your NextDNS path is DoH — **confirmed 2026-11-21** on my reading of your "Yes" to Q1 | if you meant DoT or plain DNS, milestone 1 task 1.8 retargets; see [03 §1](03-implementation-plan.md#1-shape-of-the-plan) |
+| A1 | The NextDNS path to measure is DoH | if DoT or plain DNS is needed instead, the NextDNS encrypted-transport stream is retargeted; see [verification.md](verification.md) |
 | A2 | User-space timestamps add tens to hundreds of microseconds, occasionally more | the loop-lag flag fires often; kernel timestamps move up the list |
-| A3 | `. NS`, `example.com A`, and `wikipedia.org AAAA` are answerable from cache by all four providers and are not blocked by your NextDNS profile | change the query set; expectations make a block visible rather than silent |
+| A3 | `. NS`, `example.com A`, and `wikipedia.org AAAA` are answerable from cache by all four providers and are not blocked by the NextDNS profile in use | change the query set; expectations make a block visible rather than silent |
 | A4 | Truncated UDP answers are rare with the default queries | fallback statistics become prominent; adjust queries |
 | A5 | Any of the three stacks has ample performance for this workload | none — performance was not a selection criterion |
 | A6 | History for ~26 streams fits in roughly 17 MB; total resident memory under 64 MB | shorten compact history or re-baseline |
 | A7 | A full recording is roughly 0.3–0.5 GB per day | lower the retention cap or bring compression forward |
-| A8 | Your terminals render braille and block characters at single-cell width | `--ascii`, or adjust glyph sets after Q6 |
-| A9 | You may not have native IPv6 everywhere; v6 streams must degrade cleanly | no change — already designed for |
-| A10 | Effort figures assume one experienced Rust developer with an AI coding agent | scale accordingly |
-| A11 | Browser-downloaded unsigned macOS binaries are quarantined; Homebrew and `cargo install` avoid that | add signing to milestone 4 |
-
----
-
-## 3. Decisions that need your input
-
-None of these blocked the plan; each has a default the plan proceeds on.
-
-### 3.1 Answers received on 2026-11-21
-
-| # | Your answer | How it is recorded | Still needed before the affected task starts |
-|---|---|---|---|
-| **Q1** | **How do you use NextDNS?** Transport, where it is configured, and whether the fixed anycast addresses should be probed as well. | **Answered:** DoH to your profile hostname; anycast addresses not probed (§3.1) | decides which encrypted transport ships in milestone 1 and what card 3 measures |
-| **Q2** | **What is your Twelve99/Arelion target?** Router, listed resolver, or both. | **Answered:** both, as separate streams; exact addresses still to come (§3.1) | a router is a hop on your path (ICMP only, rate-limited); a resolver is a service that may or may not answer you |
-| **Q3** | **Which Linux hosts will run this?** | **Answered:** Ubuntu and Debian; versions and the sysctl decision still to come (§3.1) | determines whether ICMP works out of the box on Linux and which machine is reference environment R2 |
-| Q4 | **Confirm the stack:** Rust or Go? | **Answered:** Rust | the margin was small ([02 §2.2](02-architecture.md#22-weighted-decision-matrix)) |
-
-Answering these questions is not treated as approval to begin development; that needs your explicit go-ahead.
-
-### 3.2 Questions and defaults
-
-| # | Question | Default if you say nothing | Why it matters |
-|---|---|---|---|
-| **Q1** | **How do you use NextDNS?** Transport, where it is configured, and whether the fixed anycast addresses should be probed as well. | **Answered:** DoH to your profile hostname; anycast addresses not probed (§3.1) | decides which encrypted transport ships in milestone 1 and what card 3 measures |
-| **Q2** | **What is your Twelve99/Arelion target?** Router, listed resolver, or both. | **Answered:** both, as separate streams; exact addresses still to come (§3.1) | a router is a hop on your path (ICMP only, rate-limited); a resolver is a service that may or may not answer you |
-| **Q3** | **Which Linux hosts will run this?** | **Answered:** Ubuntu and Debian; versions and the sysctl decision still to come (§3.1) | determines whether ICMP works out of the box on Linux and which machine is reference environment R2 |
-| Q4 | **Confirm the stack:** Rust or Go? | **Answered:** Rust | the margin was small ([02 §2.2](02-architecture.md#22-weighted-decision-matrix)) |
-| Q5 | **Controls:** do you want the gateway and local-DNS rows, and on by default? | available, off by default | extra traffic to your own gateway; some gateways do not answer echo |
-| Q6 | **Terminals:** which emulators, fonts, tmux or not, SSH or not — and, if you can, the screenshot of your current trippy/gping/prettyping setup that was meant to accompany the request. | design to the sketches; validate glyphs on the development Mac's default terminal | breakpoints, glyph choices, and colour depth are validated against what you actually use |
-| Q7 | **Route inspection scope:** is an unprivileged ICMP trace enough, or do you need UDP/TCP and Paris-style traces (which need privileges on Linux)? | ICMP only; `trippy-core` spike decides the rest | decides whether the optional adapter is worth carrying |
-| Q8 | **Name, licence, and repository:** the executable name (placeholder `pathwatch`), the project licence, and whether to initialise a git repository here. | keep the placeholder; MIT OR Apache-2.0; ask before `git init` | affects paths, environment variable names, packaging |
-| Q9 | **Defaults to confirm:** 2 s ICMP deadline, 5-minute default window, mouse off, recording off, DoQ/DoH3 deferred. | as listed | cheap to change now, visible to you every day later |
-| Q10 | **Sustained probing of an Arelion router:** are you comfortable sending one echo per second indefinitely to a backbone router interface? | yes at 1/s; configurable down to one per 5 s for router targets | etiquette toward infrastructure that was not published as a measurement target |
+| A8 | Terminals render braille and block characters at single-cell width | `--ascii`, or adjust glyph sets |
+| A9 | Native IPv6 may not be available everywhere; v6 streams must degrade cleanly | no change — already designed for |
+| A11 | Browser-downloaded unsigned macOS binaries are quarantined; Homebrew and `cargo install` avoid that | add signing to the release process |

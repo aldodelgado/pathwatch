@@ -1,5 +1,5 @@
 //! Window statistics. Every number here is defined in the metric dictionary,
-//! `planning/01-design-spec.md` §5. Statistics are a pure function of the
+//! `docs/design/design.md` §5. Statistics are a pure function of the
 //! samples handed in; nothing here knows about clocks or rendering.
 
 use serde::Serialize;

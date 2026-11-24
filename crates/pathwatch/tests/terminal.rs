@@ -448,6 +448,29 @@ fn stopping_and_resuming_a_live_session_is_confirmed_stated_and_recorded() {
     t.exits_with(0);
 }
 
+/// Whether this host lets an unprivileged program open an ICMP socket.
+///
+/// macOS always does. Linux decides by `net.ipv4.ping_group_range`, and where
+/// that excludes the user — stock Ubuntu, GitHub's Ubuntu runners — a live
+/// ICMP session has nothing to measure: the streams read `UNSUPPORTED`, which
+/// other tests here check. A test of what a live ICMP session does says so
+/// and stops. Where the host is known to permit it, `PATHWATCH_REQUIRE_ICMP`
+/// turns that into a failure, so the tests cannot be skipped by accident.
+#[track_caller]
+fn live_icmp() -> bool {
+    use pathwatch_core::model::Family;
+    use pathwatch_core::platform::icmp_sock::IcmpSocket;
+    match IcmpSocket::open(Family::V4) {
+        Ok(_) => true,
+        Err(e) => {
+            let why = pathwatch_core::capability::explain_icmp_open_error(Family::V4, &e);
+            assert!(std::env::var_os("PATHWATCH_REQUIRE_ICMP").is_none_or(|v| v.is_empty()), "PATHWATCH_REQUIRE_ICMP is set and {why}");
+            eprintln!("not run at {}: needs a live ICMP session, and {why}", std::panic::Location::caller());
+            false
+        }
+    }
+}
+
 // ───────────────────────── recording, export, replay ─────────────────────────
 
 fn pathwatch(args: &[&str]) -> Command {
@@ -542,6 +565,9 @@ fn a_recorded_session_exports_in_every_format_and_never_contains_the_profile_id(
 
 #[test]
 fn a_recording_that_cannot_be_started_is_an_error_before_anything_is_sent() {
+    if !live_icmp() {
+        return;
+    }
     let dir = scratch("record-refused");
     let config = dir.join("config.toml");
     std::fs::write(&config, RECORDED).unwrap();
@@ -597,8 +623,94 @@ fn a_live_session_records_and_its_recording_replays_as_a_replay() {
     t.exits_with(0);
 }
 
+/// A scripted session as a recording file whose session id, provider name,
+/// stream ids and event text all carry `hostile`.
+fn hostile_recording(dir: &std::path::Path, hostile: &str) -> std::path::PathBuf {
+    use pathwatch_core::model::{EventRec, Line, Msg, Record, SessionRec, StreamRec};
+    let sc = pathwatch_core::script::by_name("isolated-failure").expect("a built-in scenario");
+    let streams = sc.streams.iter().map(|s| StreamRec {
+        stream: s.info.id.clone(),
+        provider: s.info.provider.clone(),
+        target: s.info.target.clone(),
+        protocol: s.info.protocol,
+        family: s.info.family,
+        configured: s.configured.into(),
+        interval_ms: s.info.interval.as_millis() as u64,
+        deadline_ms: s.info.deadline.as_millis() as u64,
+        state: s.state.into(),
+        reason: None,
+    });
+    let start = SessionRec {
+        session: "s-MARK".into(),
+        state: "start".into(),
+        utc: "2026-11-21T00:00:00.000Z".into(),
+        app: "pathwatch".into(),
+        version: "test".into(),
+        os: "test".into(),
+        arch: "test".into(),
+        streams: streams.collect(),
+        counters: None,
+        traffic: Vec::new(),
+    };
+    let note = EventRec { session: "s-MARK".into(), at_ns: 1, utc: "2026-11-21T00:00:00.000Z".into(), event: "note".into(), stream: None, detail: "a note MARK".into() };
+    let mut lines = vec![Line::new(Record::Session(start)).to_json(), Line::new(Record::Event(note)).to_json()];
+    lines.extend(pathwatch_core::script::generate_timed(&sc, 7).into_iter().filter_map(|(_, m)| if let Msg::Record(r) = m { Some(Line::new(r).to_json()) } else { None }));
+    // In the file as JSON carries it: `\u001b` for the controls, the rest raw.
+    let escaped = serde_json::to_string(hostile).expect("a string");
+    let escaped = escaped.trim_matches('"');
+    let scripted = format!("\"session\":\"{}\"", sc.session());
+    let text = (lines.join("\n") + "\n").replace(&scripted, "\"session\":\"s-MARK\"").replace("MARK", escaped).replace("resolver-v4", &format!("resolver-v4{escaped}"));
+    let path = dir.join("hostile.jsonl");
+    std::fs::write(&path, text).expect("write the recording");
+    path
+}
+
+#[test]
+fn a_recording_from_someone_else_cannot_write_to_the_terminal() {
+    // Set the window title, write the clipboard, a C1 control, an override
+    // of the reading direction: what a recording could carry if its text
+    // reached the terminal as it is in the file.
+    const HOSTILE: &str = "\u{1b}]0;INJECTED\u{7}\u{1b}]52;c;eA==\u{1b}\\\u{9b}31m\u{202e}";
+    let dir = scratch("hostile");
+    let recording = hostile_recording(&dir, HOSTILE);
+    let raw = std::fs::read_to_string(&recording).unwrap();
+    assert!(raw.contains("\\u001b]0;INJECTED") && raw.contains('\u{202e}'), "the file carries it");
+    let unsafe_in = |s: &str| s.chars().filter(|c| *c != '\n').any(pathwatch_core::sanitize::is_unsafe);
+
+    for format in ["jsonl", "csv", "summary"] {
+        let out = pathwatch(&["export", recording.to_str().unwrap(), "--format", format]).output().expect("run export");
+        assert_eq!(out.status.code(), Some(0), "{format}: {}", text(&out.stderr));
+        let (stdout, stderr) = (text(&out.stdout), text(&out.stderr));
+        assert!(!unsafe_in(&stdout) && !unsafe_in(&stderr), "{format}: a control character or an override was written:\n{stdout:?}\n{stderr:?}");
+        // Nothing is hidden either: it is there, as text.
+        assert!(stdout.contains("INJECTED"), "{format}: {stdout}");
+        if format != "jsonl" {
+            assert!(stdout.contains("\\x1b]0;INJECTED\\x07"), "{format}: shown as text: {stdout}");
+        }
+    }
+
+    let mut t = Term::spawn(&["replay", recording.to_str().unwrap()], 120, 35);
+    t.started();
+    t.until("the replay", |t| t.screen().contains("REPLAY ENDED"));
+    // Every tab of the provider whose stream ids carry it, and the events.
+    t.keys("\r");
+    for _ in 0..5 {
+        t.keys("l");
+    }
+    t.until("the Events tab", |t| t.screen().contains("[Events]"));
+    t.keys("q");
+    let out = t.exits_with(0);
+    assert!(out.contains("INJECTED"), "the text was drawn");
+    for sequence in ["\u{1b}]0;", "\u{1b}]52;", "\u{7}", "\u{9b}", "\u{202e}"] {
+        assert!(!out.contains(sequence), "{sequence:?} reached the terminal");
+    }
+}
+
 #[test]
 fn controls_run_as_a_line_of_their_own_on_a_live_session() {
+    if !live_icmp() {
+        return;
+    }
     // Both controls given literal loopback addresses: nothing is discovered
     // and nothing leaves this machine. Port 53 on loopback is normally
     // closed, which is a fine thing for a control to report.
@@ -645,6 +757,13 @@ fn controls_run_as_a_line_of_their_own_on_a_live_session() {
     assert!(plain.contains("127.0.0.2") && plain.contains("127.0.0.3"), "recorded as measured");
     let redacted = export(&["--redact-local"]);
     assert!(!redacted.contains("127.0.0.2") && !redacted.contains("127.0.0.3"), "the control addresses are gone");
+    // So is what the source context says in words: the interface's name and
+    // the gateway, which is recorded whether or not a control probes it.
+    assert!(plain.contains("source context 1: IPv4 127.0.0.1 on lo") && plain.contains("\"if\":\"lo"), "recorded as found");
+    assert!(
+        redacted.contains("source context 1: ‹redacted:local›") && !redacted.contains(" on lo") && !redacted.contains("gateway ") && !redacted.contains("\"if\":"),
+        "{redacted}"
+    );
     // On loopback the host's own address is also the provider target's, so
     // that goes too; the streams and every record remain.
     assert!(redacted.contains("‹redacted:local›") && redacted.contains("gateway/configured/icmp/4") && redacted.contains("cloudflare/lo4/icmp/4"), "the streams remain");
@@ -670,6 +789,9 @@ const AFTER_RELOAD: &str = "[general]\nfamilies = [\"ipv4\"]\n[icmp]\ninterval =
 
 #[test]
 fn the_r_key_reloads_a_valid_file_and_refuses_anything_else_without_changing_a_thing() {
+    if !live_icmp() {
+        return;
+    }
     let dir = scratch("reload");
     let config = dir.join("config.toml");
     std::fs::write(&config, BEFORE_RELOAD).unwrap();
@@ -744,6 +866,9 @@ fn a_hang_up_from_a_closed_terminal_still_ends_a_live_session() {
 
 #[test]
 fn headless_collection_reloads_on_hang_up_and_says_what_happened() {
+    if !live_icmp() {
+        return;
+    }
     let dir = scratch("reload-headless");
     let config = dir.join("config.toml");
     std::fs::write(&config, BEFORE_RELOAD).unwrap();
@@ -986,6 +1111,9 @@ fn an_interrupted_sample_does_not_claim_its_assertions_held() {
 
 #[test]
 fn a_route_trace_is_proposed_then_run_on_its_own_socket_and_stops_by_itself() {
+    if !live_icmp() {
+        return;
+    }
     // Traced address: this machine's loopback. The destination answers at
     // the first hop, so the trace is two rounds of one probe and nothing
     // leaves the host. Reverse lookups are off: they would ask a resolver.
@@ -1145,7 +1273,7 @@ fn the_configuration_file_can_ask_for_the_mouse_on_a_live_session() {
 
 // ───────────────────────── performance (run on request) ─────────────────────────
 
-/// Measurements against the budgets in `planning/03-implementation-plan.md`
+/// Measurements against the budgets in `docs/design/verification.md`
 /// §5 that need no network. Ignored in an ordinary test run: they take
 /// minutes, want a quiet machine, and mean something only in a release
 /// build. Every destination is this machine's own loopback.
@@ -1352,7 +1480,7 @@ mod perf {
         let (bytes, cpu, peak) = watch(&mut t, pid, time);
         let secs = time.as_secs_f64();
         // Three per cent since 2026-11-22: restated from two, which this
-        // workload sat on. See `planning/03-implementation-plan.md` §5.
+        // workload sat on. See `docs/design/verification.md` §5.
         let mut ok = row("CPU, live view", "mean ≤ 3 % of one core", format!("{:.2} % over {secs:.0} s", cpu / secs * 100.0), cpu / secs <= 0.03);
         ok &= row("terminal output, live view", "mean ≤ 20 kB/s", format!("{:.1} kB/s over {secs:.0} s", bytes as f64 / secs / 1000.0), bytes as f64 / secs <= 20_000.0);
         // Frozen: collection goes on, the screen has nothing new to show.

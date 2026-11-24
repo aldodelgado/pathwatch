@@ -11,7 +11,7 @@
 | ICMP echo | an unprivileged ICMP datagram socket, one per address family, opened when the first ICMP stream starts | available to every user | available when `net.ipv4.ping_group_range` includes one of your groups — see below |
 | DNS over UDP, TCP, TLS and HTTPS | ordinary UDP and TCP sockets | nothing special | nothing special |
 | Route trace | an ICMP datagram socket of its own, with the TTL set | as ICMP echo | as ICMP echo |
-| Gateway and local-DNS controls | the routing table and `/etc/resolv.conf`, read only | nothing special | nothing special |
+| The source context of every session, and the gateway and local-DNS controls | the routing table and `/etc/resolv.conf`, read only. On macOS the routing table is read by running `/sbin/route -n get default`; nothing else is ever started | nothing special | nothing special |
 | Recording | permission to write in the recording directory | — | — |
 
 ## Linux: unprivileged ICMP
@@ -92,7 +92,11 @@ A firewall that blocks any of these makes that stream time out or report unreach
 
 ## What it keeps
 
-Nothing on disk unless you ask for a recording (`--record`, or `[recording] enabled`). A recording holds every observation, including destination addresses and your source address; a NextDNS profile id is removed from it as it is written. `pathwatch export --redact-local` removes your own addresses from a copy you mean to share.
+Nothing on disk unless you ask for a recording (`--record`, or `[recording] enabled`). A recording holds every observation, including destination addresses and your source address; a NextDNS profile id is removed from it as it is written. It is created readable by you alone, in directories made the same way; a directory that already exists keeps the permissions it has. `pathwatch export --redact-local` removes your own addresses, your interface names and your gateway from a copy you mean to share.
+
+Only this program's own segments count against `recording.max_total`, and only they are deleted for it: files named `NNNNNN.jsonl` that open with a segment header, in a directory directly under the recording directory. Anything else there is left alone.
+
+A recording from someone else can be replayed and exported safely. Text in a recording is treated like text off the network: control characters and direction overrides in it are shown as text (`\x1b`), never sent to the terminal.
 
 ## Where this was checked
 
@@ -104,4 +108,4 @@ Nothing on disk unless you ask for a recording (`--record`, or `[recording] enab
 | the same | user 1000, range `1 0` | off | `UNSUPPORTED` with the remedy naming group 1000; DNS lines unchanged |
 | the same | root, range `1 0` | off | `UNSUPPORTED` — root does not help |
 
-Not checked: your Ubuntu and Debian machines, any x86_64 host, and a Linux host outside a container. Containers started by Docker here had the range already open, which is Docker's doing, not the distribution's.
+Not checked: any x86_64 host, and a Linux host outside a container — an Ubuntu or Debian installation in particular. Containers started by Docker here had the range already open, which is Docker's doing, not the distribution's.

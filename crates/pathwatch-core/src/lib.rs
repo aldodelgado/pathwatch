@@ -1,4 +1,4 @@
-//! Measurement core for `pathwatch` (placeholder name).
+//! Measurement core for `pathwatch`.
 //!
 //! This crate has no terminal dependencies: a renderer can only consume what
 //! is published here and cannot influence probe timing.

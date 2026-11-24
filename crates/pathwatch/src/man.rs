@@ -73,19 +73,23 @@ fn commands(cmd: &Command, prefix: &str, out: &mut String) {
 const DESCRIPTION: &str = "\
 pathwatch measures up to four DNS and network providers continuously \\(em by default Cloudflare and Google, with NextDNS and Arelion once their endpoints are configured \\(em and shows, with stated definitions, which is misbehaving, on which protocol and address family, and since when.
 .PP
-It sends ICMP echo requests and DNS queries over UDP, TCP, TLS and HTTPS to addresses named in its configuration and nowhere else. It runs without privilege and never changes a system setting. Where the host does not permit a kind of probe, that stream is reported as unsupported; it is never reported as the target failing.
+It sends ICMP echo requests and DNS queries over UDP, TCP, TLS and HTTPS to the addresses named in its configuration. A target given as a hostname is looked up through the system resolver, and so are the names of route hops in a trace you start; nothing else is sent anywhere. It runs without privilege and never changes a system setting. Where the host does not permit a kind of probe, that stream is reported as unsupported; it is never reported as the target failing.
 .PP
 With no command, \\fBpathwatch\\fR is \\fBpathwatch run\\fR.";
 
 const EXIT_STATUS: &[(&str, &str)] = &[
     ("0", "The program ran and ended normally. This says nothing about the network, unless \\fB\\-\\-assert\\fR was given."),
-    ("1", "An unexpected internal error."),
+    ("1", "The dashboard lost its terminal: it could not be written to or read from."),
     ("2", "A usage error: an option that cannot be understood, an assertion that could never be checked, or an interactive command without a terminal."),
     ("3", "The configuration is invalid. Every problem is listed."),
     ("4", "No stream could be started: every configured probe is unsupported or refused on this host."),
-    ("5", "An error on an output that was asked for: a recording, an export, or records written to a pipe that closed before an asserted sample was complete."),
+    (
+        "5",
+        "An error on a file that was asked for: a recording that cannot be written or read, an export, or records written to a pipe that closed before an asserted sample was complete.",
+    ),
     ("10", "A \\fBsample \\-\\-assert\\fR check was false, or could not be evaluated."),
-    ("130, 143", "Ended by SIGINT or SIGTERM in a headless command."),
+    ("101", "An unexpected internal error. The terminal is restored first."),
+    ("130, 143", "Ended by SIGINT or SIGTERM in a headless command. The dashboard exits 0 however it is left."),
 ];
 
 const ENVIRONMENT: &[(&str, &str)] = &[

@@ -1,5 +1,5 @@
 //! Incident rules for a single stream, with hysteresis and cooldown.
-//! See `planning/01-design-spec.md` §8.
+//! See `docs/design/design.md` §8.
 //!
 //! Every rule opens on one condition and closes on a stricter one, so a stream
 //! at the edge does not flicker; a rule that has just closed cannot reopen

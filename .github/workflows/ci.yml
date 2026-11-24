@@ -1,34 +1,61 @@
-# Not yet exercised: this workspace is not a git repository and has no remote.
-# The same commands were run locally on macOS (arm64) and in a Linux container.
 name: ci
 
 on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   test:
+    name: test (${{ matrix.name }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        include:
+          - name: macos
+            os: macos-latest
+            icmp: allowed
+          # Linux decides who may open an unprivileged ICMP socket by
+          # net.ipv4.ping_group_range. Distributions that ship systemd's
+          # defaults allow it; stock Ubuntu refuses. Both are supported, so
+          # both are tested: with it refused, ICMP streams must read
+          # UNSUPPORTED and everything else must still run.
+          - name: ubuntu, icmp allowed
+            os: ubuntu-latest
+            icmp: allowed
+          - name: ubuntu, icmp refused
+            os: ubuntu-latest
+            icmp: refused
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      # A setting of the throwaway runner, made here so the outcome does not
+      # depend on the runner image. pathwatch itself never changes it.
+      - name: Set unprivileged ICMP on the runner
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w net.ipv4.ping_group_range="${{ matrix.icmp == 'allowed' && '0 2147483647' || '1 0' }}"
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
-      # What this runner permits. On Ubuntu runners unprivileged ICMP is usually
-      # off; the loopback ICMP test then verifies the "unsupported" path instead.
+      # Every test target runs, whatever fails. Where ICMP is allowed, a test
+      # that needs a live ICMP session may not skip itself.
+      - run: cargo test --workspace --locked --no-fail-fast
+        env:
+          PATHWATCH_REQUIRE_ICMP: ${{ matrix.icmp == 'allowed' && '1' || '' }}
+      # What this runner permits, as a user would see it.
       - run: cargo run --locked -p pathwatch -- doctor
-      # One Crossterm major only, once the dashboard crate exists (milestone 2).
-      - run: cargo tree -d --locked || true
+      # One Crossterm major only: Ratatui and the dashboard must share it.
+      - name: One crossterm version
+        run: |
+          cargo tree --locked -d
+          ! cargo tree --locked -d | grep -E '^crossterm v'
 
   licences:
     runs-on: ubuntu-latest
